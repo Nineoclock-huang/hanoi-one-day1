@@ -10,10 +10,10 @@ export const isAiConfigured=Boolean(endpoint);
 export async function requestAiReply(input:{messages:DialogueMessage[];target:OrderTarget;criteria:Criteria;assessment:Assessment;suggestedReply:AiReply;task:string}):Promise<AiReply|null>{
   if(!endpoint)return null;
   const controller=new AbortController();
-  const timeout=window.setTimeout(()=>controller.abort(),35000);
+  const timeout=window.setTimeout(()=>controller.abort(),16000);
   try{
     const response=await fetch(`${endpoint}/chat`,{method:'POST',headers:{'Content-Type':'application/json'},signal:controller.signal,body:JSON.stringify({
-      messages:input.messages.slice(-10).map(message=>({role:message.role,vi:message.vi})),
+      messages:input.messages.slice(-6).map(message=>({role:message.role,vi:message.vi})),
       target:input.target,
       criteria:input.criteria,
       assessment:input.assessment,

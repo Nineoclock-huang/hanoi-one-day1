@@ -1,8 +1,9 @@
 import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react';
-import {afterEach,expect,it,vi} from 'vitest';
+import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import App from './App';
 vi.mock('./cityRenderer', () => ({mountCity: () => { throw new Error('WebGL unavailable'); }}));
-afterEach(() => { cleanup(); localStorage.clear(); });
+beforeEach(()=>{const values=[0,0,.5,0];let index=0;vi.spyOn(Math,'random').mockImplementation(()=>values[index++%values.length])});
+afterEach(() => { cleanup(); localStorage.clear(); vi.restoreAllMocks(); });
 it('无 WebGL 时可完成咖啡任务并返回城市',async()=>{
   render(<App/>);fireEvent.click(screen.getByRole('button',{name:/开始体验/}));
   await waitFor(()=>expect(screen.getByRole('status')).toHaveTextContent('当前设备无法显示'));

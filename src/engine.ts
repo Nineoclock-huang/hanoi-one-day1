@@ -1,0 +1,10 @@
+export type Criteria={product:boolean;quantity:boolean;sugar:boolean;service:boolean;payment:boolean};
+export const emptyCriteria:Criteria={product:false,quantity:false,sugar:false,service:false,payment:false};
+export function normalizeVietnamese(value:string){return value.toLocaleLowerCase("vi").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/đ/g,"d").replace(/[^a-z0-9\s]/g," ").replace(/\s+/g," ").trim()}
+const any=(text:string,terms:string[])=>terms.some(term=>text.includes(term));
+export function analyzeMessage(input:string):Partial<Criteria>{const text=normalizeVietnamese(input);return{product:any(text,["ca phe sua da","cafe sua da","ca phe sua","cafe sua"]),quantity:any(text,["mot","1 ly","moi ly"]),sugar:any(text,["it duong","bot duong","giam duong","it ngot","khong qua ngot","nhe duong"]),service:any(text,["mang di","dem di","tai cho","uong tai day"]),payment:any(text,["thanh toan","tra tien","tien mat","chuyen khoan","quet the"])}}
+export function mergeCriteria(current:Criteria,found:Partial<Criteria>):Criteria{return Object.fromEntries(Object.keys(current).map(key=>[key,current[key as keyof Criteria]||Boolean(found[key as keyof Criteria])])) as Criteria}
+export function analyzeConversation(inputs:string[]):Criteria{return inputs.reduce((state,input)=>mergeCriteria(state,analyzeMessage(input)),{...emptyCriteria})}
+export const completedCount=(criteria:Criteria)=>Object.values(criteria).filter(Boolean).length;
+export function clerkReply(criteria:Criteria){if(!criteria.product)return{vi:"Bạn muốn gọi món gì?",zh:"你想点什么？"};if(!criteria.quantity)return{vi:"Bạn muốn gọi mấy ly?",zh:"你想要几杯？"};if(!criteria.sugar)return{vi:"Bạn muốn cà phê ngọt như thế nào?",zh:"你希望咖啡甜度如何？"};if(!criteria.service)return{vi:"Bạn uống tại chỗ hay mang đi?",zh:"堂食还是带走？"};if(!criteria.payment)return{vi:"Bạn muốn thanh toán bằng cách nào?",zh:"你想如何付款？"};return{vi:"Cảm ơn bạn! Cà phê của bạn sẽ có ngay.",zh:"谢谢！你的咖啡马上就好。"}}
+export const recommendedExpression="Cho tôi một ly cà phê sữa đá, ít đường, mang đi nhé. Tôi thanh toán bằng tiền mặt.";

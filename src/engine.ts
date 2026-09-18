@@ -1,10 +1,13 @@
 export type Criteria={product:boolean;quantity:boolean;sugar:boolean;service:boolean;payment:boolean};
+export type AttemptStatus='pending'|'correct'|'incorrect';
+export type Assessment=Record<keyof Criteria,AttemptStatus>;
 export type ProductId='milk-iced'|'black-iced'|'bac-xiu'|'egg';
 export type SugarId='none'|'less'|'normal';
 export type ServiceId='takeaway'|'here';
 export type OrderTarget={product:ProductId;quantity:1|2;sugar:SugarId;service:ServiceId};
 
 export const emptyCriteria:Criteria={product:false,quantity:false,sugar:false,service:false,payment:false};
+export const emptyAssessment:Assessment={product:'pending',quantity:'pending',sugar:'pending',service:'pending',payment:'pending'};
 export function normalizeVietnamese(value:string){return value.toLocaleLowerCase('vi').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/[^a-z0-9\s]/g,' ').replace(/\s+/g,' ').trim()}
 const any=(text:string,terms:string[])=>terms.some(term=>text.includes(term));
 const products:Record<ProductId,{vi:string;zh:string;terms:string[]}>= {
@@ -41,6 +44,11 @@ function detectedSugar(text:string){return(Object.keys(sugars)as SugarId[]).find
 function detectedService(text:string){return(Object.keys(services)as ServiceId[]).find(id=>any(text,services[id].terms))}
 function detectedQuantity(text:string){return([1,2]as const).find(value=>any(text,quantityTerms[value]))}
 export function analyzeMessage(input:string,target=currentOrderTarget):Partial<Criteria>{const text=normalizeVietnamese(input);return{product:detectedProduct(text)===target.product,quantity:detectedQuantity(text)===target.quantity,sugar:detectedSugar(text)===target.sugar,service:detectedService(text)===target.service,payment:any(text,paymentTerms)}}
+export function analyzeAttempts(input:string,target=currentOrderTarget):Partial<Assessment>{const text=normalizeVietnamese(input),product=detectedProduct(text),quantity=detectedQuantity(text),sugar=detectedSugar(text),service=detectedService(text),result:Partial<Assessment>={};if(product)result.product=product===target.product?'correct':'incorrect';if(quantity)result.quantity=quantity===target.quantity?'correct':'incorrect';if(sugar)result.sugar=sugar===target.sugar?'correct':'incorrect';if(service)result.service=service===target.service?'correct':'incorrect';if(any(text,paymentTerms))result.payment='correct';if(any(text,['khong thanh toan','khong tra tien','khong mua nua']))result.payment='incorrect';return result}
+export function mergeAssessment(current:Assessment,found:Partial<Assessment>):Assessment{return Object.fromEntries((Object.keys(current)as(keyof Assessment)[]).map(key=>[key,current[key]==='pending'&&(found[key]==='correct'||found[key]==='incorrect')?found[key]:current[key]]))as Assessment}
+export function resolvedCriteria(assessment:Assessment):Criteria{return Object.fromEntries((Object.keys(assessment)as(keyof Assessment)[]).map(key=>[key,assessment[key]!=='pending']))as Criteria}
+export function correctCriteria(assessment:Assessment):Criteria{return Object.fromEntries((Object.keys(assessment)as(keyof Assessment)[]).map(key=>[key,assessment[key]==='correct']))as Criteria}
+export const resolvedCount=(assessment:Assessment)=>Object.values(assessment).filter(value=>value!=='pending').length;
 export function mergeCriteria(current:Criteria,found:Partial<Criteria>):Criteria{return Object.fromEntries(Object.keys(current).map(key=>[key,current[key as keyof Criteria]||Boolean(found[key as keyof Criteria])]))as Criteria}
 export function analyzeConversation(inputs:string[],target=currentOrderTarget):Criteria{return inputs.reduce((state,input)=>mergeCriteria(state,analyzeMessage(input,target)),{...emptyCriteria})}
 export const completedCount=(criteria:Criteria)=>Object.values(criteria).filter(Boolean).length;
@@ -57,4 +65,8 @@ export function clerkReply(criteria:Criteria,inputs:string[]=[],target=currentOr
   if(!criteria.service)return{vi:'Bạn uống tại chỗ hay mang đi?',zh:'堂食还是带走？'};
   if(!criteria.payment)return{vi:'Bạn muốn thanh toán bằng cách nào?',zh:'你想如何付款？'};
   return{vi:'Cảm ơn bạn! Đồ uống của bạn sẽ có ngay.',zh:'谢谢！你的饮品马上就好。'};
+}
+export function combineClerkAcknowledgement(acknowledgement:{vi:string;zh:string}|null,next:{vi:string;zh:string}){
+  if(!acknowledgement||/[?？]/.test(acknowledgement.vi+acknowledgement.zh))return next;
+  return{vi:`${acknowledgement.vi} ${next.vi}`,zh:`${acknowledgement.zh} ${next.zh}`};
 }

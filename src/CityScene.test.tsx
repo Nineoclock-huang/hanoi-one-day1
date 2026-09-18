@@ -8,7 +8,7 @@ it('无 WebGL 时可完成咖啡任务并返回城市',async()=>{
   render(<App/>);fireEvent.click(screen.getByRole('button',{name:/开始体验/}));
   await waitFor(()=>expect(screen.getByRole('status')).toHaveTextContent('当前设备无法显示'));
   fireEvent.click(screen.getByRole('button',{name:'进入咖啡店'}));
-  expect(screen.getByText('必须完成 5 个目标：')).toBeInTheDocument();
+  expect(screen.getByText('需要作答 5 个目标（每项只有一次评分机会）：')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button',{name:'进入咖啡店'}));
   fireEvent.change(screen.getByRole('textbox'),{target:{value:'Cho tôi một ly cà phê sữa đá, ít đường, mang đi nhé.'}});
   fireEvent.click(screen.getByRole('button',{name:'发送'}));
@@ -17,7 +17,23 @@ it('无 WebGL 时可完成咖啡任务并返回城市',async()=>{
   fireEvent.change(screen.getByRole('textbox'),{target:{value:'Tôi thanh toán.'}});
   fireEvent.click(screen.getByRole('button',{name:'发送'}));
   await waitFor(()=>expect(screen.getByText('任务报告 · 已保存到本机')).toBeInTheDocument());
-  expect(JSON.parse(localStorage.getItem('hanoi-one-day-reports')!)[0].score).toBe(100);
+  expect(JSON.parse(localStorage.getItem('hanoi-one-day-reports')!)[0].objectiveScore).toBe(75);
   fireEvent.click(screen.getByRole('button',{name:'返回城市地图'}));
   expect(screen.getByRole('heading',{name:'今天，从河内出发。'})).toBeInTheDocument();
+});
+it('首次答错打叉且后续改口不能补分，仍可完成报告',async()=>{
+  render(<App/>);fireEvent.click(screen.getByRole('button',{name:/开始体验/}));
+  await waitFor(()=>expect(screen.getByRole('status')).toHaveTextContent('当前设备无法显示'));
+  fireEvent.click(screen.getByRole('button',{name:'进入咖啡店'}));
+  fireEvent.click(screen.getByRole('button',{name:'进入咖啡店'}));
+  fireEvent.change(screen.getByRole('textbox'),{target:{value:'Cho tôi một ly cà phê đen đá, ít đường, mang đi.'}});
+  fireEvent.click(screen.getByRole('button',{name:'发送'}));
+  expect(screen.getByLabelText('冰牛奶咖啡：错误')).toBeInTheDocument();
+  await waitFor(()=>expect(screen.getByText('Bạn muốn thanh toán bằng cách nào?')).toBeInTheDocument());
+  fireEvent.change(screen.getByRole('textbox'),{target:{value:'Cà phê sữa đá. Tôi thanh toán.'}});
+  fireEvent.click(screen.getByRole('button',{name:'发送'}));
+  await waitFor(()=>expect(screen.getByText('任务报告 · 已保存到本机')).toBeInTheDocument());
+  const saved=JSON.parse(localStorage.getItem('hanoi-one-day-reports')!)[0];
+  expect(saved.assessment.product).toBe('incorrect');
+  expect(saved.objectiveScore).toBe(60);
 });

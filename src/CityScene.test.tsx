@@ -13,6 +13,7 @@ it('无 WebGL 时可完成咖啡任务并返回城市',async()=>{
   fireEvent.change(screen.getByRole('textbox'),{target:{value:'Cho tôi một ly cà phê sữa đá, ít đường, mang đi nhé.'}});
   fireEvent.click(screen.getByRole('button',{name:'发送'}));
   expect(screen.getByText('4/5')).toBeInTheDocument();
+  await waitFor(()=>expect(screen.getByText('Bạn muốn thanh toán bằng cách nào?')).toBeInTheDocument());
   fireEvent.change(screen.getByRole('textbox'),{target:{value:'Tôi thanh toán.'}});
   fireEvent.click(screen.getByRole('button',{name:'发送'}));
   await waitFor(()=>expect(screen.getByText('任务报告 · 已保存到本机')).toBeInTheDocument());

@@ -49,6 +49,7 @@ export function mergeAssessment(current:Assessment,found:Partial<Assessment>):As
 export function resolvedCriteria(assessment:Assessment):Criteria{return Object.fromEntries((Object.keys(assessment)as(keyof Assessment)[]).map(key=>[key,assessment[key]!=='pending']))as Criteria}
 export function correctCriteria(assessment:Assessment):Criteria{return Object.fromEntries((Object.keys(assessment)as(keyof Assessment)[]).map(key=>[key,assessment[key]==='correct']))as Criteria}
 export const resolvedCount=(assessment:Assessment)=>Object.values(assessment).filter(value=>value!=='pending').length;
+export function finalScore(assessment:Assessment,languageScore:number,hintsUsed:number){const objective=Math.max(0,Object.values(assessment).filter(value=>value==='correct').length*15-hintsUsed*2);return Math.min(objective+Math.max(0,Math.min(25,languageScore)),Object.values(assessment).includes('incorrect')?79:100)}
 export function mergeCriteria(current:Criteria,found:Partial<Criteria>):Criteria{return Object.fromEntries(Object.keys(current).map(key=>[key,current[key as keyof Criteria]||Boolean(found[key as keyof Criteria])]))as Criteria}
 export function analyzeConversation(inputs:string[],target=currentOrderTarget):Criteria{return inputs.reduce((state,input)=>mergeCriteria(state,analyzeMessage(input,target)),{...emptyCriteria})}
 export const completedCount=(criteria:Criteria)=>Object.values(criteria).filter(Boolean).length;

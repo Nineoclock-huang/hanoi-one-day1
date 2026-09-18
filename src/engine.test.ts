@@ -1,5 +1,5 @@
 import{describe,expect,it}from'vitest';
-import{analyzeAttempts,analyzeConversation,analyzeMessage,clerkReply,combineClerkAcknowledgement,completedCount,emptyAssessment,emptyCriteria,generateOrderTarget,mergeAssessment,mergeCriteria,normalizeVietnamese,OrderTarget}from'./engine';
+import{analyzeAttempts,analyzeConversation,analyzeMessage,clerkReply,combineClerkAcknowledgement,completedCount,emptyAssessment,emptyCriteria,finalScore,generateOrderTarget,mergeAssessment,mergeCriteria,normalizeVietnamese,OrderTarget}from'./engine';
 const milkOrder:OrderTarget={product:'milk-iced',quantity:1,sugar:'less',service:'takeaway'};
 describe('越南语规则识别',()=>{
   it('忽略声调、大小写和多余空格',()=>expect(normalizeVietnamese('  CÀ   PHÊ SỮA ĐÁ  ')).toBe('ca phe sua da'));
@@ -18,4 +18,5 @@ describe('一次作答评判',()=>{
   it('只说咖啡不消耗商品的一次作答机会',()=>expect(analyzeAttempts('Cà phê',milkOrder).product).toBeUndefined());
   it('首次明确作答后锁定结果，不能用后续答案补分',()=>{const first=mergeAssessment(emptyAssessment,{product:'incorrect'});expect(mergeAssessment(first,{product:'correct'}).product).toBe('incorrect')});
   it('AI 如果追问已作答项，使用程序决定的下一问',()=>{const next={vi:'Bạn muốn thanh toán bằng cách nào?',zh:'你想如何付款？'};expect(combineClerkAcknowledgement({vi:'Bạn muốn cà phê gì?',zh:'你要什么咖啡？'},next)).toEqual(next)});
+  it('只要有一项答错，综合分不会被语言分抬到优秀档',()=>expect(finalScore({product:'incorrect',quantity:'correct',sugar:'correct',service:'correct',payment:'correct'},25,0)).toBe(79));
 });

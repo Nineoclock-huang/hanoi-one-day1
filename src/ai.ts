@@ -2,7 +2,8 @@ import type {Criteria,OrderTarget} from './engine';
 
 export type DialogueMessage={role:'clerk'|'user';vi:string;zh?:string};
 export type AiReply={vi:string;zh:string};
-const endpoint=(import.meta.env.VITE_AI_ENDPOINT as string|undefined)?.replace(/\/$/,'');
+const defaultEndpoint=import.meta.env.MODE==='test'?'':'https://hanoi-one-day-ai.hanoi-one-day.workers.dev';
+const endpoint=((import.meta.env.VITE_AI_ENDPOINT as string|undefined)||defaultEndpoint).replace(/\/$/,'');
 export const isAiConfigured=Boolean(endpoint);
 
 export async function requestAiReply(input:{messages:DialogueMessage[];target:OrderTarget;criteria:Criteria;suggestedReply:AiReply;task:string}):Promise<AiReply|null>{

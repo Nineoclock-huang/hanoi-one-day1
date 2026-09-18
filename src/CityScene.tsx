@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Coffee, ArrowUpRight, Sun } from 'lucide-react';
+import { Coffee, ArrowUpRight, Sun, Plus, Minus, LocateFixed, Landmark, LockKeyhole, X } from 'lucide-react';
+import { CITY_PLACES, CITY_VIEWS, CITY_MAP_SOURCES, cityPlace, type CityViewId } from './cityData';
+import type { CityHandle } from './cityRenderer';
 import './city.css';
 
 const GUIDE_KEY='hanoi-one-day-guide-seen';
@@ -13,33 +15,52 @@ const guideSteps=[
 export default function CityScene({ onEnter }: { onEnter: () => void }) {
   const host = useRef<HTMLDivElement>(null);
   const pin = useRef<HTMLButtonElement>(null);
+  const markers = useRef(new Map<string, HTMLButtonElement>());
+  const controls = useRef<CityHandle | null>(null);
   const enter = useRef(onEnter);
   enter.current = onEnter;
   const [status, setStatus] = useState('loading');
+  const [view,setView]=useState<CityViewId>(()=>window.innerWidth<=760?'old-quarter':'overview');
+  const initialView=useRef(view);
+  const [selected,setSelected]=useState<string|null>(null);
+  const changeView=(id:CityViewId)=>{initialView.current=id;setView(id);setSelected(null);controls.current?.setView(id)};
+  const selectPlace=(id:string)=>{const place=cityPlace(id);if(!place)return;initialView.current=place.district;setView(place.district);controls.current?.setView(place.district);setSelected(id)};
   const [guideStep,setGuideStep]=useState(()=>localStorage.getItem(GUIDE_KEY)==='yes'?-1:0);
   const finishGuide=()=>{localStorage.setItem(GUIDE_KEY,'yes');setGuideStep(-1)};
   const nextGuide=()=>{if(guideStep>=guideSteps.length-1)finishGuide();else setGuideStep(guideStep+1)};
   useEffect(() => {
     let cancelled = false;
-    let dispose: (() => void) | undefined;
+    let handle: CityHandle | undefined;
     import('./cityRenderer').then(({ mountCity }) => {
       if (cancelled || !host.current || !pin.current) return;
       try {
-        dispose = mountCity(host.current, pin.current, () => enter.current(), () => setStatus('fallback'));
+        handle = mountCity(host.current, pin.current, () => enter.current(), () => setStatus('fallback'), {
+          initialView:initialView.current,
+          markers:[...markers.current].map(([id,element])=>({id,element})),
+          onSelect:setSelected,
+        });
+        controls.current=handle;
         setStatus('ready');
       } catch { setStatus('fallback'); }
     }).catch(() => { if (!cancelled) setStatus('fallback'); });
-    return () => { cancelled = true; dispose?.(); };
+    return () => { cancelled = true; handle?.dispose(); controls.current=null; };
   }, []);
   return <div className="city-shell">
-    <div className="city-heading"><div><p className="eyebrow">HÀ NỘI · A LITTLE WORLD TO EXPLORE</p><h2>今天，从河内出发。</h2><p>沿着湖边散步，走进街角的咖啡香。</p></div><span className="city-weather"><Sun size={19}/> 09:20 · 晴朗的早晨</span></div>
+    <div className="city-heading"><div><p className="eyebrow">HÀ NỘI · A CITY OF LAKES & STORIES</p><h2>今天，从河内出发。</h2><p>从西湖到红河，探索老街、地标与新的城市生活。</p></div><span className="city-weather"><Sun size={19}/> 09:20 · 晴朗的早晨</span></div>
+    <nav className="city-districts" aria-label="地图分区">{CITY_VIEWS.map(item=><button key={item.id} aria-pressed={view===item.id} onClick={()=>changeView(item.id)}>{item.label}</button>)}</nav>
     <div className="city-world">
-      <div ref={host} className="city-canvas" role="img" aria-label="固定鸟瞰视角的河内立体城市，包含还剑湖、老城区、红河与周边街区"/>
-      <div className="city-map-caption"><span>01 / EXPLORE</span><strong>河内 · 老城区与周边</strong><small>河内意象微缩地图 · 非精确地理复刻</small></div>
+      <div ref={host} className="city-canvas" role="img" aria-label="固定鸟瞰视角的河内立体城市，包含西湖、还剑湖、巴亭、老城区、红河与龙边街区"/>
+      <div className="city-map-caption"><span>HANOI / CITY ATLAS</span><strong>{CITY_VIEWS.find(item=>item.id===view)?.label}</strong><small>参照真实方位 · 比例与街道经游戏化简化</small></div>
       <button ref={pin} hidden={status !== 'ready'} className="city-pin" onClick={onEnter} aria-label="街角咖啡店，进入任务"><Coffee size={18}/><span>CÀ PHÊ <small>点击进入</small></span><ArrowUpRight size={15}/></button>
+      {CITY_PLACES.filter(place=>place.id!=='cafe').map(place=><button key={place.id} ref={element=>{if(element)markers.current.set(place.id,element);else markers.current.delete(place.id)}} hidden={status!=='ready'} className={`city-place-marker ${place.kind}`} aria-label={`了解${place.name}`} onClick={()=>setSelected(place.id)}>{place.kind==='landmark'?<Landmark size={12}/>:<LockKeyhole size={11}/>}<span>{place.name}</span></button>)}
       {status !== 'ready' && <div className="city-fallback" role="status"><Coffee size={36}/><p>{status === 'loading' ? '正在铺开河内的街道…' : '当前设备无法显示 3D 城市。'}</p>{status === 'fallback' && <button onClick={onEnter}>进入咖啡店 <ArrowUpRight size={17}/></button>}</div>}
-      <div className="city-compass"><span>北 N</span><i>↑</i><small>固定鸟瞰视角</small></div>
-      <div className="city-legend"><span className="legend-dot"/> 可探索的地点 <span className="legend-muted"/> 即将开放</div>
+      <div className="city-compass"><span>北 N</span><i>↑</i></div>
+      <div className="city-map-tools">
+        <select aria-label="查找景点或场景" value={selected||''} onChange={event=>selectPlace(event.target.value)}><option value="">寻找一个地点…</option>{CITY_PLACES.map(place=><option key={place.id} value={place.id}>{place.name}{place.status==='planned'?' · 即将开放':''}</option>)}</select>
+        <div className="city-zoom"><button aria-label="放大地图" disabled={status!=='ready'} onClick={()=>controls.current?.zoom(1.25)}><Plus size={17}/></button><button aria-label="缩小地图" disabled={status!=='ready'} onClick={()=>controls.current?.zoom(.8)}><Minus size={17}/></button><button aria-label="重置地图视角" onClick={()=>changeView('overview')}><LocateFixed size={17}/></button></div>
+      </div>
+      <div className="city-legend"><span className="legend-dot"/> 咖啡任务 <span className="legend-muted"/> 城市地标 <small>拖动平移 · 双指 / 滚轮缩放</small></div>
+      {selected&&guideStep<0&&<aside className="city-place-card" aria-label="地点介绍"><button className="city-place-close" aria-label="关闭地点介绍" onClick={()=>setSelected(null)}><X size={16}/></button><small>{cityPlace(selected).status==='planned'?'未来场景 · 即将开放':cityPlace(selected).status==='open'?'已开放 · 越南语任务':'河内地标'}</small><h3>{cityPlace(selected).name}</h3><em>{cityPlace(selected).vietnamese}</em><p>{cityPlace(selected).description}</p>{selected==='cafe'?<button className="city-enter" onClick={onEnter}>进入咖啡店 <ArrowUpRight size={15}/></button>:<span className="city-place-note">{cityPlace(selected).status==='planned'?'任务尚未开放，敬请期待':'点击地图上的咖啡店开始语言练习'}</span>}</aside>}
       {guideStep>=0&&<div className="city-tutorial" role="dialog" aria-label="新手教程" onClick={nextGuide} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();nextGuide()}}} tabIndex={0}>
         <div className="guide-card" key={guideStep}><span className="guide-kicker">城市引导 · {guideStep+1}/{guideSteps.length}</span><h3>{guideSteps[guideStep].title}</h3><p>{guideSteps[guideStep].body}</p><span className="guide-next">{guideStep===guideSteps.length-1?'开始探索':'点击屏幕继续'} <ArrowUpRight size={15}/></span></div>
         <img className="guide-character" src={`${import.meta.env.BASE_URL}hanoi-guide.png`} alt="拿着地图的新手引导员"/>
@@ -47,5 +68,6 @@ export default function CityScene({ onEnter }: { onEnter: () => void }) {
       </div>}
     </div>
     {guideStep<0&&<button className="guide-replay" onClick={()=>setGuideStep(0)}>重看引导</button>}
+    <details className="city-map-sources"><summary>地图参考</summary>{CITY_MAP_SOURCES.map(source=><a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.label}</a>)}<span>景点按真实相对方位布置；店铺、道路与建筑为教学场景的简化设计。</span></details>
   </div>;
 }

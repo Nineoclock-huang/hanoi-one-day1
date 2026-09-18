@@ -10,8 +10,8 @@ export function mountCity(host: HTMLElement, pin: HTMLElement, onEnter: () => vo
   host.appendChild(renderer.domElement);
   const scene = new T.Scene();
   const camera = new T.OrthographicCamera(-24, 24, 17, -17, .1, 160);
-  camera.position.set(32, 37, 44);
-  camera.lookAt(0, 0, 0);
+  camera.position.set(30, 31, 40);
+  camera.lookAt(-2, 0, 1);
   scene.add(new T.HemisphereLight(0xfff8e8, 0x647b69, 2.6));
   const sun = new T.DirectionalLight(0xffedc7, 3);
   sun.position.set(-20, 35, 12); sun.castShadow = true;
@@ -36,11 +36,15 @@ export function mountCity(host: HTMLElement, pin: HTMLElement, onEnter: () => vo
     box(x,.65,z,.17,1.3,.17,'#836748');
     const crown = new T.Mesh(sphere, material('#70956b')); crown.position.set(x,1.6*size,z); crown.scale.set(.75*size,1*size,.75*size); crown.castShadow=true; scene.add(crown);
   };
-  box(0,-.7,0,36,1.4,29,'#b6b38d');
-  box(0,.02,0,36,.16,29,'#ccd0a8');
+  const groundShape=new T.Shape();
+  groundShape.moveTo(-18,-10);groundShape.lineTo(-16.5,-14);groundShape.lineTo(-6,-14.4);groundShape.lineTo(2,-13.6);groundShape.lineTo(13,-14.2);groundShape.lineTo(18,-10.5);groundShape.lineTo(17.2,-2);groundShape.lineTo(18,10);groundShape.lineTo(14,14.5);groundShape.lineTo(4,13.7);groundShape.lineTo(-3,14.2);groundShape.lineTo(-17,12);groundShape.lineTo(-18.5,4);groundShape.closePath();
+  const groundGeometry=new T.ExtrudeGeometry(groundShape,{depth:1.4,bevelEnabled:true,bevelSegments:1,bevelSize:.35,bevelThickness:.2});
+  groundGeometry.rotateX(Math.PI/2);
+  const ground=new T.Mesh(groundGeometry,material('#c8cba3'));ground.position.y=.1;ground.receiveShadow=true;scene.add(ground);
+  const flatPolygon=(points:[number,number][],color:string,y:number)=>{const shape=new T.Shape();shape.moveTo(points[0][0],-points[0][1]);points.slice(1).forEach(([x,z])=>shape.lineTo(x,-z));shape.closePath();const geometry=new T.ShapeGeometry(shape);geometry.rotateX(-Math.PI/2);const mesh=new T.Mesh(geometry,material(color));mesh.position.y=y;scene.add(mesh);return geometry};
   // River along the eastern edge; surrounding countryside on the far bank.
-  box(13,.15,0,5,.13,29,'#79aaa5');
-  box(16.6,.24,0,2,.2,29,'#9faf85');
+  const riverGeometry=flatPolygon([[10.7,-13.8],[13,-14],[16,-13],[15.2,-7],[16.2,-1],[15.4,5],[17,12],[14,14],[12.3,9],[11.6,3],[10.5,-3],[11.5,-9]],'#79aaa5',.23);
+  const bankGeometry=flatPolygon([[15.6,-12.8],[17.5,-10],[17.1,-3],[17.8,10],[14,14],[14.8,8],[14.6,1],[15.5,-6]],'#9faf85',.27);
   for (let z=-13;z<14;z+=2.4) tree(16.6,z,.8);
   for (const z of [-8,1,9]) box(-3,.18,z,27,.08,1.35,'#c5b9a0');
   for (const x of [-12,-5,7]) box(x,.2,0,1.3,.09,28,'#c5b9a0');
@@ -102,12 +106,12 @@ export function mountCity(host: HTMLElement, pin: HTMLElement, onEnter: () => vo
   const click=(e:PointerEvent)=>{if(hit(e))onEnter();};
   const hover=(e:PointerEvent)=>{renderer.domElement.style.cursor=hit(e)?'pointer':'default';};
   renderer.domElement.addEventListener('pointerup',click);renderer.domElement.addEventListener('pointermove',hover);
-  const resize=()=>{const w=host.clientWidth,h=host.clientHeight;const aspect=w/h;const halfHeight=Math.max(16,25/aspect);camera.left=-halfHeight*aspect;camera.right=halfHeight*aspect;camera.top=halfHeight;camera.bottom=-halfHeight;camera.updateProjectionMatrix();camera.updateMatrixWorld();renderer.setSize(w,h);const pos=new T.Vector3(-8,4.5,3).project(camera);pin.style.left=`${(pos.x*.5+.5)*100}%`;pin.style.top=`${(-pos.y*.5+.5)*100}%`;};
+  const resize=()=>{const w=host.clientWidth,h=host.clientHeight;if(!w||!h)return;const aspect=w/h;const mobile=aspect<.9;const target=new T.Vector3(mobile?-5:-2,0,mobile?2:1);camera.position.set(target.x+32,31,target.z+39);camera.lookAt(target);const halfHeight=Math.max(mobile?12.5:13,13/aspect);camera.left=-halfHeight*aspect;camera.right=halfHeight*aspect;camera.top=halfHeight;camera.bottom=-halfHeight;camera.updateProjectionMatrix();camera.updateMatrixWorld();renderer.setSize(w,h);const pos=new T.Vector3(-8,4.5,3).project(camera);pin.style.left=`${(pos.x*.5+.5)*100}%`;pin.style.top=`${(-pos.y*.5+.5)*100}%`;};
   const observer=new ResizeObserver(resize);observer.observe(host);resize();
   const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');
   let frame=0,last=0;
   const draw=(time:number)=>{frame=requestAnimationFrame(draw);if(document.hidden || time-last<33)return;last=time;scooters.forEach((s,i)=>{s.position.set(-12+(i%2)*.4,0,reduced.matches?i*4-10:((time*.0015+i*7)%26)-13);});renderer.render(scene,camera);};
   frame=requestAnimationFrame(draw);
   const lost=(e:Event)=>{e.preventDefault();cancelAnimationFrame(frame);onLost();};renderer.domElement.addEventListener('webglcontextlost',lost);
-  return()=>{cancelAnimationFrame(frame);observer.disconnect();renderer.domElement.removeEventListener('pointerup',click);renderer.domElement.removeEventListener('pointermove',hover);renderer.domElement.removeEventListener('webglcontextlost',lost);cube.dispose();sphere.dispose();cone.dispose();cylinder.dispose();signGeo.dispose();texture.dispose();signMaterial.dispose();materials.forEach(m=>m.dispose());renderer.dispose();renderer.domElement.remove();};
+  return()=>{cancelAnimationFrame(frame);observer.disconnect();renderer.domElement.removeEventListener('pointerup',click);renderer.domElement.removeEventListener('pointermove',hover);renderer.domElement.removeEventListener('webglcontextlost',lost);cube.dispose();sphere.dispose();cone.dispose();cylinder.dispose();groundGeometry.dispose();riverGeometry.dispose();bankGeometry.dispose();signGeo.dispose();texture.dispose();signMaterial.dispose();materials.forEach(m=>m.dispose());renderer.dispose();renderer.domElement.remove();};
 }

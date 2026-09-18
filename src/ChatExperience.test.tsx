@@ -13,6 +13,8 @@ it('等待 AI 时在聊天区显示思考气泡，并自动滚动到新回复',a
   await waitFor(()=>expect(screen.getByRole('status')).toHaveTextContent('当前设备无法显示'));
   fireEvent.click(screen.getByRole('button',{name:'进入咖啡店'}));
   fireEvent.click(screen.getByRole('button',{name:'进入咖啡店'}));
+  expect(screen.getByRole('complementary',{name:'当前任务'})).toHaveTextContent('今日任务');
+  expect(screen.getByRole('complementary',{name:'咖啡店店员 Lạc'})).toBeInTheDocument();
   const before=(Element.prototype.scrollIntoView as ReturnType<typeof vi.fn>).mock.calls.length;
   fireEvent.change(screen.getByRole('textbox'),{target:{value:'Cà phê'}});
   fireEvent.click(screen.getByRole('button',{name:'发送'}));
@@ -20,4 +22,5 @@ it('等待 AI 时在聊天区显示思考气泡，并自动滚动到新回复',a
   await waitFor(()=>expect(screen.getByText(/Dạ, tôi đã nghe/)).toBeInTheDocument());
   expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
   expect((Element.prototype.scrollIntoView as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(before);
+  expect(document.querySelector('.cafe-scene .bubble.user')).toHaveTextContent('Cà phê');
 });

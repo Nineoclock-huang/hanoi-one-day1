@@ -31,7 +31,7 @@ export default function CityScene({ onEnter }: { onEnter: () => void }) {
   const [guideLeaving,setGuideLeaving]=useState(false);
   const finishGuide=()=>{localStorage.setItem(GUIDE_KEY,'yes');setGuideLeaving(false);setGuideStep(-1)};
   const nextGuide=()=>{if(guideLeaving)return;if(guideStep>=guideSteps.length-1)setGuideLeaving(true);else setGuideStep(guideStep+1)};
-  useEffect(()=>{if(!guideLeaving)return;const timer=window.setTimeout(finishGuide,820);return()=>window.clearTimeout(timer)},[guideLeaving]);
+  useEffect(()=>{if(!guideLeaving)return;const timer=window.setTimeout(finishGuide,1320);return()=>window.clearTimeout(timer)},[guideLeaving]);
   useEffect(() => {
     let cancelled = false;
     let handle: CityHandle | undefined;

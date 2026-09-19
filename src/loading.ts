@@ -9,19 +9,20 @@ export function loadCity() {
 }
 export const asset = (name: string) => `${import.meta.env.BASE_URL}optimized/${name}`;
 const warmed = new Set<string>();
-export function warmImage(name: string, url = asset(name)) {
+export function warmImage(name: string, url = asset(name),priority:'high'|'low'='low') {
   if (warmed.has(name)) return;
   warmed.add(name);
   const image = new Image();
-  image.decoding = 'async';
-  image.fetchPriority = 'low';
+  image.decoding = priority==='high'?'sync':'async';
+  image.fetchPriority = priority;
   image.onerror = () => warmed.delete(name);
   image.src = url;
 }
 export function warmCafe(includeRush=false) {
   const mobile = window.innerWidth <= 760;
   const size=mobile?448:768;
-  for(const mood of ['', '-listening', '-happy', '-clarify'])warmImage(`clerk${mood}-${size}.webp`);
-  if(includeRush)for(const mood of ['', '-listening', '-happy', '-impatient'])warmImage(`dan${mood}-${size}.webp`);
+  warmImage(`clerk-${size}.webp`,undefined,'high');
+  for(const mood of ['-listening', '-happy', '-clarify'])warmImage(`clerk${mood}-${size}.webp`);
+  if(includeRush){warmImage(`dan-${size}.webp`,undefined,'high');for(const mood of ['-listening', '-happy', '-impatient'])warmImage(`dan${mood}-${size}.webp`);}
   warmImage('cafe-' + (mobile ? 'mobile' : 'desktop'), mobile ? cafeMobile : cafeDesktop);
 }

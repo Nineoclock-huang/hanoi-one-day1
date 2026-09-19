@@ -13,7 +13,7 @@
 .cafe-scene .cafe-task{position:absolute;z-index:7;top:20px;right:20px;width:min(360px,34%);padding:15px 17px;border:1px solid #fff8e8a3;border-radius:18px;background:#fffaf2ed;box-shadow:0 15px 35px #25190e55;backdrop-filter:blur(14px);animation:cafe-panel-in .5s .18s both}
 .cafe-task-title{display:grid;grid-template-columns:1fr auto;align-items:center;gap:3px 8px}.cafe-task-title>span{grid-column:1/-1;color:#a35d3f;font-size:10px;font-weight:700;letter-spacing:.12em}.cafe-task-title>strong{font-size:14px;line-height:1.35;color:#34231c}.cafe-task .progress-compact{align-items:center;gap:5px;font-size:11px}.cafe-task .progress{width:46px;height:5px}.cafe-task .task-chips{gap:5px;padding:9px 0 0;border:0}.cafe-task .task-chips span{font-size:10px;padding:4px 6px;background:#eee4d5}.cafe-task .task-chips span.done{background:#dce9dd}.cafe-task .task-chips span.incorrect{background:#f6d9d2}
 .cafe-scene .character-stage{position:absolute;z-index:2;left:0;bottom:0;width:47%;height:86%;min-height:0;border:0;border-radius:0;background:none;box-shadow:none;overflow:visible;pointer-events:none;animation:cafe-character-in .65s .12s both}
-.cafe-scene .character-stage:after{display:none}.cafe-scene .character-glow{display:none}.cafe-scene .character-stage img{width:100%;height:100%;left:0;bottom:-4%;object-fit:contain;object-position:left bottom;filter:drop-shadow(0 18px 24px #1c100f95)}
+.cafe-scene .character-stage:after{display:none}.cafe-scene .character-glow{display:none}.cafe-scene .character-picture{display:block}.cafe-scene .character-stage img{width:100%;height:100%;left:0;bottom:-4%;object-fit:contain;object-position:left bottom;filter:drop-shadow(0 18px 24px #1c100f95);backface-visibility:hidden;will-change:transform,opacity}
 .cafe-scene .character-stage picture img{animation:sprite-enter .24s ease-out,character-breathe 4.5s .24s ease-in-out infinite}
 .cafe-scene .mood-fx{position:absolute;inset:0;z-index:3;overflow:hidden;pointer-events:none;opacity:0;transition:opacity .25s ease}.cafe-scene .mood-fx i{position:absolute;display:block}
 .cafe-scene .mood-listening .mood-fx,.cafe-scene .mood-happy .mood-fx,.cafe-scene .mood-clarify .mood-fx{opacity:1}
@@ -42,6 +42,7 @@
 @media(prefers-reduced-motion:reduce){.screen-mission:before,.screen-mission .page-wrap,.cafe-scene,.cafe-scene:before,.cafe-scene .cafe-task,.cafe-scene .character-stage,.cafe-scene .character-stage img,.cafe-scene .mood-fx i,.cafe-scene .conversation{animation:none!important}}
 
 @media(max-width:760px){.screen-mission:before,.cafe-scene:before{background-image:url('../public/optimized/cafe-800.webp')}}
+@media(max-width:760px){.cafe-scene .character-stage.mood-neutral picture img{opacity:1;animation:character-breathe 4.5s ease-in-out infinite}}
 
 /* Mobile visual-novel layout: Lạc is centered above the conversation, with controls always reachable. */
 @media(max-width:760px){

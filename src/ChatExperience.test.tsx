@@ -15,6 +15,8 @@ it('等待 AI 时在聊天区显示思考气泡，并自动滚动到新回复',a
   fireEvent.click(screen.getByRole('button',{name:'进入咖啡店'}));
   expect(screen.getByRole('complementary',{name:'当前任务'})).toHaveTextContent('今日任务');
   expect(screen.getByRole('complementary',{name:'咖啡店店员 Lạc'})).toBeInTheDocument();
+  expect(screen.getByRole('img',{name:'二次元咖啡店店员 Lạc'})).toHaveAttribute('loading','eager');
+  expect(screen.getByRole('img',{name:'二次元咖啡店店员 Lạc'})).toHaveAttribute('decoding','sync');
   const before=(Element.prototype.scrollIntoView as ReturnType<typeof vi.fn>).mock.calls.length;
   fireEvent.change(screen.getByRole('textbox'),{target:{value:'Cà phê'}});
   fireEvent.click(screen.getByRole('button',{name:'发送'}));

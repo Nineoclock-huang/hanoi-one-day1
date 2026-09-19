@@ -45,6 +45,21 @@ function detectedService(text:string){return(Object.keys(services)as ServiceId[]
 function detectedQuantity(text:string){return([1,2]as const).find(value=>any(text,quantityTerms[value]))}
 export function analyzeMessage(input:string,target=currentOrderTarget):Partial<Criteria>{const text=normalizeVietnamese(input);return{product:detectedProduct(text)===target.product,quantity:detectedQuantity(text)===target.quantity,sugar:detectedSugar(text)===target.sugar,service:detectedService(text)===target.service,payment:any(text,paymentTerms)}}
 export function analyzeAttempts(input:string,target=currentOrderTarget):Partial<Assessment>{const text=normalizeVietnamese(input),product=detectedProduct(text),quantity=detectedQuantity(text),sugar=detectedSugar(text),service=detectedService(text),result:Partial<Assessment>={};if(product)result.product=product===target.product?'correct':'incorrect';if(quantity)result.quantity=quantity===target.quantity?'correct':'incorrect';if(sugar)result.sugar=sugar===target.sugar?'correct':'incorrect';if(service)result.service=service===target.service?'correct':'incorrect';if(any(text,paymentTerms))result.payment='correct';if(any(text,['khong thanh toan','khong tra tien','khong mua nua']))result.payment='incorrect';return result}
+const affirmativeVietnamese=new Set(['dung','dung roi','vang','da','phai','phai roi','co','ok','okay','yes']);
+function isAffirmative(input:string){const text=normalizeVietnamese(input);return affirmativeVietnamese.has(text)||/^(对|对的|是|是的|没错|嗯+|好的?|可以)[。！! ]*$/.test(input.trim())}
+export function analyzeContextualConfirmation(input:string,previous:{vi:string;zh?:string}|undefined,current:Assessment,target=currentOrderTarget):Partial<Assessment>{
+  if(!previous||!isAffirmative(input))return{};
+  const vi=normalizeVietnamese(previous.vi),zh=previous.zh||'',asksConfirmation=any(vi,['dung khong','phai khong','dung chu','phai chu'])||/(对吗|是吗|是不是|对不对)/.test(zh);
+  if(!asksConfirmation)return{};
+  const result:Partial<Assessment>={};
+  if(current.product==='pending'&&(any(vi,products[target.product].terms)||zh.includes(products[target.product].zh)))result.product='correct';
+  const quantityPhrases=target.quantity===1?['mot ly','mot coc','1 ly','1 coc']:['hai ly','hai coc','2 ly','2 coc'];
+  if(current.quantity==='pending'&&(any(vi,quantityPhrases)||zh.includes(target.quantity===1?'一杯':'两杯')))result.quantity='correct';
+  if(current.sugar==='pending'&&(any(vi,sugars[target.sugar].terms)||zh.includes(sugars[target.sugar].zh)))result.sugar='correct';
+  if(current.service==='pending'&&(any(vi,services[target.service].terms)||zh.includes(services[target.service].zh)))result.service='correct';
+  if(current.payment==='pending'&&any(vi,paymentTerms))result.payment='correct';
+  return result;
+}
 export function mergeAssessment(current:Assessment,found:Partial<Assessment>):Assessment{return Object.fromEntries((Object.keys(current)as(keyof Assessment)[]).map(key=>[key,current[key]==='pending'&&(found[key]==='correct'||found[key]==='incorrect')?found[key]:current[key]]))as Assessment}
 export function resolvedCriteria(assessment:Assessment):Criteria{return Object.fromEntries((Object.keys(assessment)as(keyof Assessment)[]).map(key=>[key,assessment[key]!=='pending']))as Criteria}
 export function correctCriteria(assessment:Assessment):Criteria{return Object.fromEntries((Object.keys(assessment)as(keyof Assessment)[]).map(key=>[key,assessment[key]==='correct']))as Criteria}

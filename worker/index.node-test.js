@@ -49,7 +49,7 @@ test('Worker fails fast instead of doubling latency on an invalid AI response',a
 test('Worker returns compact language-only feedback without changing locked task marks',async()=>{
   const originalFetch=globalThis.fetch;
   let upstreamBody;
-  globalThis.fetch=async(_url,options)=>{upstreamBody=JSON.parse(options.body);return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({languageScore:18,grammar:'句子结构基本正确',vocabulary:'咖啡词汇需更准确',naturalness:'语气自然',advice:['练习 cà phê sữa đá']})}}]}),{status:200,headers:{'Content-Type':'application/json'}})};
+  globalThis.fetch=async(_url,options)=>{upstreamBody=JSON.parse(options.body);return new Response(JSON.stringify({choices:[{message:{tool_calls:[{function:{arguments:JSON.stringify({languageScore:18,grammar:'句子结构基本正确',vocabulary:'咖啡词汇需更准确',naturalness:'语气自然',advice:['练习 cà phê sữa đá']})}}]}}]}),{status:200,headers:{'Content-Type':'application/json'}})};
   try{
     const assessment={product:'incorrect',quantity:'correct',sugar:'correct',service:'correct',payment:'correct'};
     const response=await worker.fetch(new Request('https://worker.example/report',{method:'POST',headers:{Origin:'https://nineoclock-huang.github.io','Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({sessionId:'mobile-session-123456',messages:[{role:'user',vi:'Cho tôi cà phê đen đá'}],target:{product:'milk-iced',quantity:1,sugar:'less',service:'takeaway'},assessment})}),{DEEPSEEK_API_KEY:'test-secret'});
@@ -57,8 +57,8 @@ test('Worker returns compact language-only feedback without changing locked task
     const report=await response.json();
     assert.equal(report.languageScore,18);
     assert.equal('assessment' in report,false);
-    assert.deepEqual(upstreamBody.response_format,{type:'json_object'});
-    assert.equal(upstreamBody.max_tokens,280);
-    assert.equal('tools' in upstreamBody,false);
+    assert.equal(upstreamBody.tool_choice.function.name,'submit_language_report');
+    assert.equal(upstreamBody.max_tokens,500);
+    assert.equal(upstreamBody.tools[0].function.name,'submit_language_report');
   }finally{globalThis.fetch=originalFetch}
 });

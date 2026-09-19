@@ -49,3 +49,18 @@
  .cafe-scene .conversation{height:65%}.cafe-scene .speech-status{bottom:8px}.cafe-scene .character-label{bottom:13px}
 }
 @media(max-width:760px){.cafe-scene .composer input{font-size:16px}}
+
+/* Keep the mobile layers separate: task strip, character portrait, then dialogue. */
+@media(max-width:760px){
+ .cafe-scene .cafe-task{top:8px;left:8px;right:8px;width:auto;max-height:none;overflow:visible;padding:8px 10px}
+ .cafe-task-title{grid-template-columns:1fr auto}.cafe-task-title>span{padding-left:52px}.cafe-task-title>strong{font-size:11px}.cafe-task .task-chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.cafe-task .task-chips::-webkit-scrollbar{display:none}
+ .cafe-scene .character-stage{top:104px;height:43%;}
+ .cafe-scene .character-stage img{width:68%;height:106%;left:16%;bottom:-3%}
+ .cafe-scene .character-label{left:15px;bottom:12px}.cafe-scene .speech-status{bottom:8px}
+ .cafe-scene .conversation{height:46%;}
+}
+@media(max-height:720px) and (max-width:760px){
+ .cafe-scene .cafe-task{top:6px;padding:6px 8px}.cafe-task .task-chips{padding-top:3px}
+ .cafe-scene .character-stage{top:88px;height:38%}.cafe-scene .character-stage img{height:108%;bottom:-4%}
+ .cafe-scene .conversation{height:52%}
+}

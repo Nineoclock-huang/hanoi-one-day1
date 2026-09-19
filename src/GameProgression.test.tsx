@@ -61,3 +61,16 @@ it('Dận 超时只扣一次分，不自动判错或推进目标', async () => {
   act(() => vi.advanceTimersByTime(20_000));
   expect(screen.getAllByText(/Bạn gọi món xong chưa/)).toHaveLength(1);
 });
+it('完成 Dận 支线后再次进入可选择两位店员，刷新后保留选择',async()=>{
+ localStorage.setItem('hanoi-one-day-rush-unlocked','yes');vi.mocked(requestAiFeedback).mockResolvedValue(null);
+ const app=render(<App/>);fireEvent.click(screen.getByRole('button',{name:/开始体验/}));
+ await waitFor(()=>expect(screen.getByText('当前设备无法显示 3D 城市。')).toBeInTheDocument());
+ fireEvent.click(screen.getByRole('button',{name:'进入咖啡店'}));fireEvent.click(screen.getByRole('button',{name:'接受限时挑战'}));fireEvent.click(screen.getByRole('button',{name:/我准备好了/}));
+ fireEvent.change(screen.getByRole('textbox'),{target:{value:'Cho tôi một ly cà phê sữa đá ít đường mang đi. Tôi thanh toán bằng tiền mặt.'}});fireEvent.click(screen.getByRole('button',{name:'发送'}));
+ await waitFor(()=>expect(screen.getByText('最终综合得分')).toBeInTheDocument());expect(localStorage.getItem('hanoi-one-day-rush-completed')).toBe('yes');
+ fireEvent.click(screen.getByRole('button',{name:'返回城市地图'}));fireEvent.click(screen.getByRole('button',{name:'进入咖啡店'}));
+ expect(screen.getByRole('heading',{name:'Lạc 回到了柜台。'})).toBeInTheDocument();
+ fireEvent.click(screen.getByRole('button',{name:/主线 · 日常点单/}));expect(screen.getByRole('button',{name:'进入咖啡店'})).toBeInTheDocument();
+ app.unmount();render(<App/>);fireEvent.click(screen.getByRole('button',{name:/继续探索/}));await waitFor(()=>expect(screen.getByText('当前设备无法显示 3D 城市。')).toBeInTheDocument());
+ fireEvent.click(screen.getByRole('button',{name:'进入咖啡店'}));fireEvent.click(screen.getByRole('button',{name:/支线 · 忙碌时段/}));expect(screen.getByRole('button',{name:'接受限时挑战'})).toBeInTheDocument();
+});

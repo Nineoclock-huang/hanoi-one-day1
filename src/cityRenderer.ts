@@ -1,11 +1,13 @@
 import * as T from 'three';
+import { clearOfBuildings, insidePolygon, walkingRoute, WALK_STEP, type WalkObstacle, type WalkPoint } from './cityWalking';
 import { renderQuality } from './renderQuality';
 import { CITY_PLACES, CITY_VIEWS, cityPlace, type CityViewId } from './cityData';
 import { cameraTransitionDuration, easeInOutCubic } from './cameraMotion';
 
 type Point = [number, number];
+let lastPawnPosition:WalkPoint|undefined;
 type Marker = { id: string; element: HTMLElement };
-export type CityHandle = { dispose: () => void; setView: (id: CityViewId) => void; focusPlace: (id: string) => void };
+export type CityHandle = { dispose: () => void; setView: (id: CityViewId) => void; focusPlace: (id: string) => void; travelTo: (id:string) => Promise<boolean> };
 type Options = { markers: Marker[]; onSelect: (id: string) => void; initialView: CityViewId };
 
 export function mountCity(host: HTMLElement, pin: HTMLElement, onEnter: () => void, onLost: () => void, options: Options): CityHandle {
@@ -31,7 +33,9 @@ export function mountCity(host: HTMLElement, pin: HTMLElement, onEnter: () => vo
   type Primitive = keyof typeof primitives;
   const batches: Record<Primitive, { matrix: T.Matrix4; color: string }[]> = { box: [], tree: [], roof: [], round: [] };
   const dummy = new T.Object3D();
+  const obstacles:WalkObstacle[]=[];
   function part(kind: Primitive, x:number,y:number,z:number,w:number,h:number,d:number,color:string,ry=0,rz=0) {
+    if((kind==='box'||kind==='round'||kind==='tree')&&y+h/2>.7&&y-h/2<2.7){const c=Math.abs(Math.cos(ry)),s=Math.abs(Math.sin(ry));obstacles.push({x,z,w:w*c+d*s,d:d*c+w*s});}
     dummy.position.set(x,y,z);dummy.scale.set(w,h,d);dummy.rotation.set(0,ry,rz);dummy.updateMatrix();batches[kind].push({matrix:dummy.matrix.clone(),color});
   }
   const box=(x:number,y:number,z:number,w:number,h:number,d:number,color:string,ry=0,rz=0)=>part('box',x,y,z,w,h,d,color,ry,rz);
@@ -115,7 +119,7 @@ export function mountCity(host: HTMLElement, pin: HTMLElement, onEnter: () => vo
   const hotel=cityPlace('hotel');building(hotel.x,hotel.z,2.1,2.3,4,true);box(hotel.x,1.4,hotel.z+1.3,2.5,.12,.8,'#b2ad89');
   const restaurant=cityPlace('restaurant');building(restaurant.x,restaurant.z,2.5,2.4,1.8,false,4);
   const bus=cityPlace('bus');box(bus.x,1.4,bus.z,2.2,.12,.9,'#467a81');box(bus.x,.7,bus.z-.35,2.1,1.4,.07,'#acd1d0');box(bus.x,.5,bus.z,.9,.13,.4,'#cfb594');
-  function bridge(a:Point,b:Point,truss:boolean){const dx=b[0]-a[0],dz=b[1]-a[1],length=Math.hypot(dx,dz),angle=Math.atan2(dx,dz);box((a[0]+b[0])/2,.85,(a[1]+b[1])/2,1.6,.26,length,'#aab7ad',angle);for(let i=0;i<=8;i++){const t=i/8,x=a[0]+dx*t,z=a[1]+dz*t;box(x,.3,z,.45,1.4,.45,'#a5a79b');for(const side of [-1,1]){const sx=x+Math.cos(angle)*side*.7,sz=z-Math.sin(angle)*side*.7;box(sx,1.7,sz,.09,truss?1.5:.5,.09,'#7a7970');if(truss&&i<8)beam(new T.Vector3(sx,i%2?2.4:1.05,sz),new T.Vector3(sx+dx/8,i%2?1.05:2.4,sz+dz/8),'#8d8170');}}if(truss)for(const side of [-1,1]){box((a[0]+b[0])/2+Math.cos(angle)*side*.7,2.4,(a[1]+b[1])/2-Math.sin(angle)*side*.7,.1,.12,length,'#857a68',angle);box((a[0]+b[0])/2+Math.cos(angle)*side*.22,1.01,(a[1]+b[1])/2-Math.sin(angle)*side*.22,.055,.04,length,'#6c7d77',angle);}}
+  function bridge(a:Point,b:Point,truss:boolean){const dx=b[0]-a[0],dz=b[1]-a[1],length=Math.hypot(dx,dz),angle=Math.atan2(dx,dz);box((a[0]+b[0])/2,.85,(a[1]+b[1])/2,3,.26,length,'#aab7ad',angle);for(let i=0;i<=8;i++){const t=i/8,x=a[0]+dx*t,z=a[1]+dz*t;box(x,.3,z,.45,1.4,.45,'#a5a79b');for(const side of [-1,1]){const sx=x+Math.cos(angle)*side*1.4,sz=z-Math.sin(angle)*side*1.4;box(sx,1.7,sz,.09,truss?1.5:.5,.09,'#7a7970');if(truss&&i<8)beam(new T.Vector3(sx,i%2?2.4:1.05,sz),new T.Vector3(sx+dx/8,i%2?1.05:2.4,sz+dz/8),'#8d8170');}}if(truss)for(const side of [-1,1]){box((a[0]+b[0])/2+Math.cos(angle)*side*1.4,2.4,(a[1]+b[1])/2-Math.sin(angle)*side*1.4,.1,.12,length,'#857a68',angle);box((a[0]+b[0])/2+Math.cos(angle)*side*.22,1.01,(a[1]+b[1])/2-Math.sin(angle)*side*.22,.055,.04,length,'#6c7d77',angle);}}
   bridge([16,-2],[30,-11],true);bridge([21,8],[36,1],false);
   for(const x of [-38,-26,-4])for(let z=12;z<29;z+=3.4)if(allowed(x,z))tree(x,z,.8);for(let i=0;i<12;i++)tree(34+Math.sin(i)*1.5,24+i*.65,.7);
   const instancedMaterial=standard('#ffffff',.72);
@@ -124,14 +128,15 @@ export function mountCity(host: HTMLElement, pin: HTMLElement, onEnter: () => vo
   const trafficRoutes=[roads[3],roads[9]].map(route=>new T.CatmullRomCurve3(route.map(([x,z])=>new T.Vector3(x,0,z))));
   for(let i=0;i<8;i++){const car=new T.Group(),body=new T.Mesh(carGeometry,standard(['#faf3dc','#4b7d88','#c6755c','#8fa69d'][i%4])),cabin=new T.Mesh(carGeometry,standard('#466c75'));body.scale.set(.45,.28,.9);body.position.y=.46;cabin.scale.set(.36,.18,.45);cabin.position.y=.68;car.add(body,cabin);scene.add(car);traffic.push(car);}
   let view=CITY_VIEWS.find(v=>v.id===options.initialView)!;
-  let disposed=false,frame=0,transitionFrame=0,labelsDirty=true;
+  let disposed=false,frame=0,transitionFrame=0,walkingFrame=0,labelsDirty=true;
+  let finishWalk:((value:boolean)=>void)|null=null;
   const markerList=[{id:'cafe',element:pin},...options.markers].sort((a,b)=>cityPlace(b.id).priority-cityPlace(a.id).priority);
   const projectLabels=()=>{
     const w=host.clientWidth,h=host.clientHeight,occupied:{x:number;y:number;w:number;h:number}[]=[];
     host.parentElement?.querySelectorAll<HTMLElement>('.city-map-caption,.city-compass,.city-map-tools').forEach(el=>occupied.push({x:el.offsetLeft,y:el.offsetTop,w:el.offsetWidth,h:el.offsetHeight}));
     markerList.forEach(({id,element})=>{const p=cityPlace(id),v=new T.Vector3(p.x,p.height,p.z).project(camera),x=(v.x*.5+.5)*w,y=(-v.y*.5+.5)*h,ew=element.offsetWidth||100,eh=element.offsetHeight||28,b={x:x-ew/2,y:y-eh,w:ew,h:eh};const outside=b.x<8||b.x+b.w>w-8||b.y<8||y>h-48,collision=occupied.some(a=>b.x<a.x+a.w+8&&b.x+b.w+8>a.x&&b.y<a.y+a.h+7&&b.y+b.h+7>a.y);element.style.visibility=outside||collision?'hidden':'visible';element.style.left=`${x}px`;element.style.top=`${y}px`;if(!outside&&!collision)occupied.push(b);});
   };
-  const renderScene=()=>{if(disposed)return;camera.updateMatrixWorld();if(labelsDirty){projectLabels();labelsDirty=false;}renderer.render(scene,camera);};
+  const renderScene=()=>{if(disposed)return;camera.updateMatrixWorld();if(labelsDirty){projectLabels();labelsDirty=false;}const pawnScreen=pawn.position.clone().add(new T.Vector3(0,1.8,0)).project(camera);pawnLabel.style.left=`${(pawnScreen.x*.5+.5)*host.clientWidth}px`;pawnLabel.style.top=`${(-pawnScreen.y*.5+.5)*host.clientHeight}px`;pawnLabel.style.visibility=Math.abs(pawnScreen.x)>1||Math.abs(pawnScreen.y)>1?'hidden':'visible';renderer.render(scene,camera);};
   const scheduleRender=()=>{cancelAnimationFrame(frame);frame=requestAnimationFrame(renderScene);};
   const boundsFor=(next:typeof view)=>{const w=host.clientWidth,h=host.clientHeight,aspect=w/h,halfHeight=Math.max(next.span*.66,next.span*.7/aspect);return{left:-halfHeight*aspect,right:halfHeight*aspect,top:halfHeight,bottom:-halfHeight}};
   let cameraTarget=new T.Vector3();
@@ -140,6 +145,51 @@ export function mountCity(host: HTMLElement, pin: HTMLElement, onEnter: () => vo
   const moveTo=(next:typeof view,animate=true)=>{if(!host.clientWidth||!host.clientHeight)return;cancelAnimationFrame(transitionFrame);const fromPosition=camera.position.clone(),fromTarget=cameraTarget.clone(),fromBounds={left:camera.left,right:camera.right,top:camera.top,bottom:camera.bottom},toPosition=new T.Vector3(next.x+52,72,next.z+78),toTarget=new T.Vector3(next.x,0,next.z),toBounds=boundsFor(next),duration=cameraTransitionDuration(window.matchMedia('(prefers-reduced-motion: reduce)').matches);view=next;camera.zoom=1;if(!animate||!duration){camera.position.copy(toPosition);cameraTarget.copy(toTarget);camera.lookAt(cameraTarget);applyBounds(toBounds);labelsDirty=true;scheduleRender();return;}host.dataset.cameraMoving='true';const started=performance.now();const tick=(time:number)=>{if(disposed)return;const raw=Math.min(1,(time-started)/duration),progress=easeInOutCubic(raw);camera.position.lerpVectors(fromPosition,toPosition,progress);cameraTarget.lerpVectors(fromTarget,toTarget,progress);camera.lookAt(cameraTarget);camera.left=T.MathUtils.lerp(fromBounds.left,toBounds.left,progress);camera.right=T.MathUtils.lerp(fromBounds.right,toBounds.right,progress);camera.top=T.MathUtils.lerp(fromBounds.top,toBounds.top,progress);camera.bottom=T.MathUtils.lerp(fromBounds.bottom,toBounds.bottom,progress);camera.updateProjectionMatrix();labelsDirty=true;renderScene();if(raw<1)transitionFrame=requestAnimationFrame(tick);else delete host.dataset.cameraMoving;};transitionFrame=requestAnimationFrame(tick);};
   const setView=(id:CityViewId,animate=true)=>moveTo(CITY_VIEWS.find(v=>v.id===id)!,animate);
   const focusPlace=(id:string)=>{const place=cityPlace(id),district=CITY_VIEWS.find(item=>item.id===place.district)!;moveTo({...district,x:place.x,z:place.z,span:id==='west-lake'||id==='red-river'?18:14});};
+
+  // A small wooden traveller: rounded head, tapered pawn body, hat and satchel.
+  const pawn=new T.Group();scene.add(pawn);
+  const pawnLabel=document.createElement('span');pawnLabel.className='city-pawn-label';pawnLabel.textContent='小旅人 ↓';host.parentElement?.appendChild(pawnLabel);
+  const pawnPart=(g:T.BufferGeometry,color:string,x:number,y:number,z:number)=>{geometries.push(g);const mesh=new T.Mesh(g,standard(color));mesh.position.set(x,y,z);pawn.add(mesh);return mesh;};
+  pawnPart(new T.CylinderGeometry(.38,.52,.16,16),'#f9df96',0,.08,0);
+  pawnPart(new T.CylinderGeometry(.2,.38,.65,16),'#b9533c',0,.48,0);
+  pawnPart(new T.SphereGeometry(.36,16,12),'#ffe4bd',0,1.05,0);
+  pawnPart(new T.ConeGeometry(.51,.25,16),'#e5bb6c',0,1.41,0);
+  pawnPart(new T.SphereGeometry(.045,8,6),'#302c28',-.12,1.09,.32);
+  pawnPart(new T.SphereGeometry(.045,8,6),'#302c28',.12,1.09,.32);
+  pawnPart(new T.BoxGeometry(.22,.3,.17),'#3a7772',.33,.57,0);
+  const bridgeWalk=(p:WalkPoint)=>distanceToSegment(p.x,p.z,[16,-2],[30,-11])<.85||distanceToSegment(p.x,p.z,[21,8],[36,1])<.34;
+  const obstacleBuckets=new Map<string,WalkObstacle[]>();
+  for(const obstacle of obstacles){for(let x=Math.floor((obstacle.x-obstacle.w/2-.6)/4);x<=Math.floor((obstacle.x+obstacle.w/2+.6)/4);x++)for(let z=Math.floor((obstacle.z-obstacle.d/2-.6)/4);z<=Math.floor((obstacle.z+obstacle.d/2+.6)/4);z++){const key=`${x},${z}`;const bucket=obstacleBuckets.get(key)||[];bucket.push(obstacle);obstacleBuckets.set(key,bucket);}}
+  const canWalk=(p:WalkPoint)=>insidePolygon(p,ground)&&(bridgeWalk(p)||clearOfBuildings(p,obstacleBuckets.get(`${Math.floor(p.x/4)},${Math.floor(p.z/4)}`)||[]))&&!insidePolygon(p,westLake)&&!insidePolygon(p,lake)&&(!river.slice(1).some((b,i)=>distanceToSegment(p.x,p.z,river[i],b)<3.9)||bridgeWalk(p));
+  const candidates:WalkPoint[]=[];
+  for(let x=-2;x<16;x+=WALK_STEP)for(let z=1;z<10;z+=WALK_STEP){const p={x:Math.round(x/WALK_STEP)*WALK_STEP,z:Math.round(z/WALK_STEP)*WALK_STEP};if(canWalk(p))candidates.push(p);}
+  let pawnPosition=lastPawnPosition&&canWalk(lastPawnPosition)?lastPawnPosition:candidates[Math.floor(Math.random()*candidates.length)]||{x:6.5,z:2.6};
+  const groundHeight=(p:WalkPoint)=>bridgeWalk(p)?1.02:.25;
+  pawn.position.set(pawnPosition.x,groundHeight(pawnPosition),pawnPosition.z);
+  const travelTo=(id:string):Promise<boolean>=>{
+    if(finishWalk||disposed)return Promise.resolve(false);
+    const place=cityPlace(id);if(!place)return Promise.resolve(false);
+    const destination=place.kind==='scene'?{x:place.x,z:place.z+2.8}:place;
+    const route=walkingRoute(pawnPosition,destination,canWalk);
+    if(!route.length)return Promise.resolve(false);
+    // Keep both traveller and destination visible throughout the journey.
+    const minX=Math.min(...route.map(p=>p.x)),maxX=Math.max(...route.map(p=>p.x)),minZ=Math.min(...route.map(p=>p.z)),maxZ=Math.max(...route.map(p=>p.z));
+    moveTo({...view,x:(minX+maxX)/2,z:(minZ+maxZ)/2,span:Math.max(12,(maxX-minX)*.8,(maxZ-minZ)*.8)});
+    const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const stepTime=reduced?30:105,started=performance.now();host.dataset.walking='true';
+    return new Promise(resolve=>{finishWalk=resolve;
+      const tick=(now:number)=>{
+        if(disposed)return;
+        const elapsed=(now-started)/stepTime,index=Math.min(route.length-1,Math.floor(elapsed)),a=route[index],b=route[Math.min(index+1,route.length-1)],t=elapsed-Math.floor(elapsed);
+        pawn.position.set(T.MathUtils.lerp(a.x,b.x,t),groundHeight(a)+(reduced?0:Math.sin(t*Math.PI)*.48),T.MathUtils.lerp(a.z,b.z,t));
+        if(index<route.length-1)pawn.rotation.y=Math.atan2(b.x-a.x,b.z-a.z);
+        renderScene();
+        if(index<route.length-1)walkingFrame=requestAnimationFrame(tick);
+        else{pawnPosition=route.at(-1)!;lastPawnPosition=pawnPosition;pawn.position.set(pawnPosition.x,groundHeight(pawnPosition),pawnPosition.z);delete host.dataset.walking;finishWalk=null;focusPlace(id);renderScene();resolve(true);}
+      };walkingFrame=requestAnimationFrame(tick);
+    });
+  };
+
   setView(options.initialView,false);const observer=new ResizeObserver(resize);observer.observe(host);
   const labelObserver=new ResizeObserver(()=>{labelsDirty=true;scheduleRender();});markerList.forEach(({element})=>labelObserver.observe(element));
   const pointer=new T.Vector2(),raycaster=new T.Raycaster();
@@ -152,6 +202,6 @@ export function mountCity(host: HTMLElement, pin: HTMLElement, onEnter: () => vo
   // The atlas is a fixed high-quality view. Render only when its size or district changes.
   renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;
   traffic.forEach((car,i)=>{const route=trafficRoutes[i<4?0:1],position=route.getPointAt((i*.23)%1),direction=route.getTangentAt((i*.23)%1);car.position.copy(position);car.rotation.y=Math.atan2(direction.x,direction.z);});scheduleRender();
-  const lost=(event:Event)=>{event.preventDefault();cancelAnimationFrame(frame);onLost();};renderer.domElement.addEventListener('webglcontextlost',lost);
-  return {setView,focusPlace,dispose:()=>{disposed=true;cancelAnimationFrame(frame);cancelAnimationFrame(transitionFrame);observer.disconnect();labelObserver.disconnect();renderer.domElement.removeEventListener('pointerup',up);renderer.domElement.removeEventListener('webglcontextlost',lost);Object.values(primitives).forEach(g=>g.dispose());geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());renderer.dispose();renderer.domElement.remove();}};
+  const lost=(event:Event)=>{event.preventDefault();cancelAnimationFrame(frame);cancelAnimationFrame(walkingFrame);finishWalk?.(false);finishWalk=null;onLost();};renderer.domElement.addEventListener('webglcontextlost',lost);
+  return {setView,focusPlace,travelTo,dispose:()=>{disposed=true;pawnLabel.remove();cancelAnimationFrame(walkingFrame);finishWalk?.(false);finishWalk=null;cancelAnimationFrame(frame);cancelAnimationFrame(transitionFrame);observer.disconnect();labelObserver.disconnect();renderer.domElement.removeEventListener('pointerup',up);renderer.domElement.removeEventListener('webglcontextlost',lost);Object.values(primitives).forEach(g=>g.dispose());geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());renderer.dispose();renderer.domElement.remove();}};
 }

@@ -14,19 +14,39 @@ const guideSteps=[
   {title:'河内见，祝你玩得开心！',body:'教程就到这里。接下来没有固定路线——去看看城市、寻找地标，准备好时再走进咖啡店。现在，把河内交给你自由探索。'},
 ];
 
-export default function CityScene({ onEnter, rushUnlocked=false, cafeChanged=false }: { onEnter: () => void; rushUnlocked?: boolean; cafeChanged?: boolean }) {
+export default function CityScene({ onEnter, onMarket, rushUnlocked=false, cafeChanged=false }: { onEnter: () => void; onMarket?:()=>void; rushUnlocked?: boolean; cafeChanged?: boolean }) {
   const host = useRef<HTMLDivElement>(null);
   const pin = useRef<HTMLButtonElement>(null);
   const markers = useRef(new Map<string, HTMLButtonElement>());
   const controls = useRef<CityHandle | null>(null);
   const enter = useRef(onEnter);
   enter.current = onEnter;
+  const [travel,setTravel]=useState<string|null>(null);
+  const [arriving,setArriving]=useState<string|null>(null);
+  const busy=useRef(false),alive=useRef(true),arrivalTimer=useRef<number|undefined>(undefined);
+  useEffect(()=>{alive.current=true;return()=>{alive.current=false;window.clearTimeout(arrivalTimer.current)}},[]);
+  const visitRef=useRef<(id:string,enterTask?:boolean)=>void>(()=>{});
+  const visit=async(id:string,enterTask=false)=>{
+    if(busy.current)return;
+    if(!controls.current?.travelTo){setSelected(id);controls.current?.focusPlace(id);if(enterTask){if(id==='cafe')onEnter();else if(id==='market')onMarket?.();}return;}
+    busy.current=true;setSelected(null);setTravel(id);
+    const arrived=await controls.current.travelTo(id);
+    if(!alive.current)return;
+    setTravel(null);
+    if(!arrived){busy.current=false;setSelected(id);return;}
+    setSelected(id);
+    if(enterTask&&(id==='cafe'||id==='market')){
+      setArriving(id);
+      arrivalTimer.current=window.setTimeout(()=>{if(!alive.current)return;busy.current=false;setArriving(null);if(id==='cafe')enter.current();else onMarket?.();},650);
+    }else busy.current=false;
+  };
+  visitRef.current=visit;
   const [status, setStatus] = useState('loading');
   const [view,setView]=useState<CityViewId>(()=>window.innerWidth<=760?'old-quarter':'overview');
   const initialView=useRef(view);
   const [selected,setSelected]=useState<string|null>(null);
-  const changeView=(id:CityViewId)=>{initialView.current=id;setView(id);setSelected(null);controls.current?.setView(id)};
-  const selectPlace=(id:string)=>{const place=cityPlace(id);if(!place)return;initialView.current=place.district;setView(place.district);controls.current?.focusPlace(id);setSelected(id)};
+  const changeView=(id:CityViewId)=>{if(busy.current)return;initialView.current=id;setView(id);setSelected(null);controls.current?.setView(id)};
+  const selectPlace=(id:string)=>{const place=cityPlace(id);if(!place||busy.current)return;initialView.current=place.district;setView(place.district);void visit(id,id==='market')};
   const [guideStep,setGuideStep]=useState(()=>localStorage.getItem(GUIDE_KEY)==='yes'?-1:0);
   const [guideLeaving,setGuideLeaving]=useState(false);
   const finishGuide=()=>{localStorage.setItem(GUIDE_KEY,'yes');setGuideLeaving(false);setGuideStep(-1)};
@@ -38,10 +58,10 @@ export default function CityScene({ onEnter, rushUnlocked=false, cafeChanged=fal
     loadCity().then(({ mountCity }) => {
       if (cancelled || !host.current || !pin.current) return;
       try {
-        handle = mountCity(host.current, pin.current, () => enter.current(), () => setStatus('fallback'), {
+        handle = mountCity(host.current, pin.current, () => visitRef.current('cafe',true), () => setStatus('fallback'), {
           initialView:initialView.current,
           markers:[...markers.current].map(([id,element])=>({id,element})),
-          onSelect:setSelected,
+          onSelect:(id)=>visitRef.current(id,id==='market'),
         });
         controls.current=handle;
         setStatus('ready');
@@ -53,19 +73,21 @@ export default function CityScene({ onEnter, rushUnlocked=false, cafeChanged=fal
     <div className="city-heading"><div><p className="eyebrow">HÀ NỘI · A CITY OF LAKES & STORIES</p><h2>今天，从河内出发。</h2><p>从西湖到红河，探索老街、地标与新的城市生活。</p></div><span className="city-weather"><Sun size={19}/> 09:20 · 晴朗的早晨</span></div>
     <nav className="city-districts" aria-label="地图分区">{CITY_VIEWS.map(item=><button key={item.id} aria-pressed={view===item.id} onClick={()=>changeView(item.id)}>{item.label}</button>)}</nav>
     <div className="city-world">
+      {travel&&<div className="city-travel-status" role="status">正在前往{cityPlace(travel).name} · 跟着小旅人跳一跳</div>}
+      {arriving&&<div className="city-arrival" role="status"><span>HÀ NỘI · 下一段故事</span><strong>{cityPlace(arriving).name}</strong><i/></div>}
       <div ref={host} className="city-canvas" role="img" aria-label="固定鸟瞰视角的河内立体城市，包含西湖、还剑湖、巴亭、老城区、红河与龙边街区"/>
       <div className="city-map-caption"><span>HANOI / CITY ATLAS</span><strong>{CITY_VIEWS.find(item=>item.id===view)?.label}</strong><small>参照真实方位 · 比例与街道经游戏化简化</small></div>
-      <button ref={pin} hidden={status !== 'ready'} className={`city-pin ${cafeChanged?'has-change':''}`} onClick={onEnter} aria-label={`街角咖啡店，${rushUnlocked?'进入限时挑战':'进入任务'}`}>{cafeChanged&&<b className="cafe-change-mark" aria-hidden="true">!</b>}<Coffee size={18}/><span>CÀ PHÊ <small>{rushUnlocked?'新挑战 · 点击进入':'点击进入'}</small></span><ArrowUpRight size={15}/></button>
+      <button ref={pin} hidden={status !== 'ready'} className={`city-pin ${cafeChanged?'has-change':''}`} onClick={()=>void visit('cafe',true)} aria-label={`街角咖啡店，${rushUnlocked?'进入限时挑战':'进入任务'}`}>{cafeChanged&&<b className="cafe-change-mark" aria-hidden="true">!</b>}<Coffee size={18}/><span>CÀ PHÊ <small>{rushUnlocked?'新挑战 · 点击进入' :'Lạc · 点击进入'}</small></span><ArrowUpRight size={15}/></button>
       {cafeChanged&&<div className="city-change-bubble" role="status"><Sparkles size={15}/><span>咖啡馆似乎发生了一些变化…</span></div>}
       {CITY_PLACES.filter(place=>place.id!=='cafe').map(place=><button key={place.id} ref={element=>{if(element)markers.current.set(place.id,element);else markers.current.delete(place.id)}} hidden={status!=='ready'} className={`city-place-marker ${place.kind}`} aria-label={`了解${place.name}`} onClick={()=>selectPlace(place.id)}>{place.kind==='landmark'?<Landmark size={12}/>:<LockKeyhole size={11}/>}<span>{place.name}</span></button>)}
       {status !== 'ready' && <div className="city-fallback" role="status"><Coffee size={36}/><p>{status === 'loading' ? '正在铺开河内的街道…' : '当前设备无法显示 3D 城市。'}</p>{<button onClick={onEnter}>进入咖啡店 <ArrowUpRight size={17}/></button>}</div>}
       <div className="city-compass"><span>北 N</span><i>↑</i></div>
       <div className="city-map-tools">
-        <select aria-label="查找景点或场景" value={selected||''} onChange={event=>selectPlace(event.target.value)}><option value="">寻找一个地点…</option>{CITY_PLACES.map(place=><option key={place.id} value={place.id}>{place.name}{place.status==='planned'?' · 即将开放':''}</option>)}</select>
+        <select aria-label="查找景点或场景" value={travel||selected||''} onChange={event=>selectPlace(event.target.value)}><option value="">寻找一个地点…</option>{CITY_PLACES.map(place=><option key={place.id} value={place.id}>{place.name}{place.id==='market'?' · 下一站预告':place.status==='planned'?' · 即将开放':''}</option>)}</select>
         <div className="city-zoom"><button aria-label="重置地图视角" onClick={()=>changeView('overview')}><LocateFixed size={17}/></button></div>
       </div>
-      <div className="city-legend"><span className="legend-dot"/> 咖啡任务 <span className="legend-muted"/> 城市地标 <small>固定高清镜头 · 点击上方分区切换视角</small></div>
-      {selected&&guideStep<0&&<aside className="city-place-card" aria-label="地点介绍"><button className="city-place-close" aria-label="关闭地点介绍" onClick={()=>setSelected(null)}><X size={16}/></button><small>{cityPlace(selected).status==='planned'?'未来场景 · 即将开放':cityPlace(selected).status==='open'?'已开放 · 越南语任务':'河内地标'}</small><h3>{cityPlace(selected).name}</h3><em>{cityPlace(selected).vietnamese}</em><p>{cityPlace(selected).description}</p>{selected==='cafe'?<button className="city-enter" onClick={onEnter}>进入咖啡店 <ArrowUpRight size={15}/></button>:<span className="city-place-note">{cityPlace(selected).status==='planned'?'任务尚未开放，敬请期待':'点击地图上的咖啡店开始语言练习'}</span>}</aside>}
+      <div className="city-legend"><span className="legend-dot"/> 咖啡任务 <span className="legend-muted"/> 城市地标 <small>点击地点 · 小旅人跳跃前往</small></div>
+      {selected&&guideStep<0&&<aside className="city-place-card" aria-label="地点介绍"><button className="city-place-close" aria-label="关闭地点介绍" onClick={()=>setSelected(null)}><X size={16}/></button><small>{cityPlace(selected).status==='planned'?'未来场景 · 即将开放':cityPlace(selected).status==='open'?'已开放 · 越南语任务':'河内地标'}</small><h3>{cityPlace(selected).name}</h3><em>{cityPlace(selected).vietnamese}</em><p>{cityPlace(selected).description}</p>{selected==='market'&&onMarket?<button className="city-enter" onClick={()=>void visit('market',true)}>走进同春市场 <ArrowUpRight size={15}/></button>:selected==='cafe'?<button className="city-enter" onClick={()=>void visit('cafe',true)}>进入咖啡店 <ArrowUpRight size={15}/></button>:<span className="city-place-note">{cityPlace(selected).status==='planned'?'任务尚未开放，敬请期待':'点击地图上的咖啡店开始语言练习'}</span>}</aside>}
       {guideStep>=0&&<div className={`city-tutorial ${guideStep===guideSteps.length-1?'guide-goodbye':''} ${guideLeaving?'is-leaving':''}`} role="dialog" aria-label="新手教程" onClick={nextGuide} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();nextGuide()}}} tabIndex={0}>
         <div className="guide-card" key={guideStep}><span className="guide-kicker">城市引导 · {guideStep+1}/{guideSteps.length}</span><h3>{guideSteps[guideStep].title}</h3><p>{guideSteps[guideStep].body}</p><span className="guide-next">{guideStep===guideSteps.length-1?(guideLeaving?'正在进入城市…':'挥手告别，开始探索'):'点击屏幕继续'} <ArrowUpRight size={15}/></span></div>
         <picture style={{display:"contents"}}><source media="(max-width: 760px)" srcSet={asset(guideStep===guideSteps.length-1?'guide-wave-320.png':'guide-320.webp')}/><img className="guide-character" src={asset(guideStep===guideSteps.length-1?'guide-wave-640.png':'guide-640.webp')} decoding="async" alt={guideStep===guideSteps.length-1?'挥手告别的新手引导员':'拿着地图的新手引导员'}/></picture>

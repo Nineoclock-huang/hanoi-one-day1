@@ -7,7 +7,7 @@ import { analyzeAttempts, analyzeContextualConfirmation, type Assessment, clerkR
 import { keyboardIsOpen } from './mobileViewport';
 import { averageResponseTime, formatCountdown, RUSH_QUESTION_LIMIT_MS, rushPenalty } from './rush';
 
-type Screen = 'home' | 'map' | 'mission' | 'chat' | 'grading' | 'report';
+type Screen = 'home' | 'map' | 'mission' | 'chat' | 'grading' | 'report' | 'cafe-choice' | 'market';
 type Difficulty = 'standard' | 'rush';
 type CharacterMood = ClerkMood | 'impatient';
 type ChatMessage = { role: 'clerk' | 'user'; vi: string; zh?: string };
@@ -16,8 +16,10 @@ type SavedReport = { score: number; objectiveScore: number; completedAt: string;
 
 const STORAGE_KEY = 'hanoi-one-day-reports';
 const RUSH_KEY = 'hanoi-one-day-rush-unlocked';
-const steps: Exclude<Screen, 'grading'>[] = ['home', 'map', 'mission', 'chat', 'report'];
-const labels: Record<Screen, string> = { home: '首页', map: '城市地图', mission: '任务介绍', chat: '对话场景', grading: 'AI 评分', report: '任务报告' };
+const RUSH_DONE_KEY = 'hanoi-one-day-rush-completed';
+function rushWasCompleted(){return localStorage.getItem(RUSH_DONE_KEY)==='yes'||loadReports().some(report=>report.difficulty==='rush');}
+const steps: Screen[] = ['home', 'map', 'mission', 'chat', 'report'];
+const labels: Record<Screen, string> = { home: '首页', map: '城市地图', mission: '任务介绍', chat: '对话场景', grading: 'AI 评分', report: '任务报告', 'cafe-choice':'咖啡馆 · 任务选择', market:'同春市场' };
 const sprite = (clerk: 'Lạc' | 'Dận', mood: CharacterMood, size: 448 | 768) => {
   if (clerk === 'Dận') return asset(`dan${mood === 'neutral' ? '' : mood === 'clarify' || mood === 'impatient' ? '-impatient' : `-${mood}`}-${size}.webp`);
   return asset(`clerk${mood === 'neutral' ? '' : mood === 'impatient' ? '-clarify' : `-${mood}`}-${size}.webp`);
@@ -28,7 +30,8 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('home');
   const [difficulty, setDifficulty] = useState<Difficulty>('standard');
   const [rushUnlocked, setRushUnlocked] = useState(() => localStorage.getItem(RUSH_KEY) === 'yes');
-  const [cafeChanged, setCafeChanged] = useState(() => localStorage.getItem(RUSH_KEY) === 'yes');
+  const [rushCompleted,setRushCompleted]=useState(rushWasCompleted);
+  const [cafeChanged, setCafeChanged] = useState(() => localStorage.getItem(RUSH_KEY) === 'yes'&&!rushWasCompleted());
   const [newlyUnlocked, setNewlyUnlocked] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [assessment, setAssessment] = useState<Assessment>({ ...emptyAssessment });
@@ -48,8 +51,9 @@ export default function App() {
     return () => { viewport?.removeEventListener('resize', update); viewport?.removeEventListener('scroll', update); window.removeEventListener('resize', update); document.body.classList.remove('chat-viewport', 'keyboard-open'); };
   }, [screen]);
 
-  const back = () => setScreen(steps[Math.max(navigationStep - 1, 0)]);
-  const enterCafe = () => { randomizeOrderTarget(); setDifficulty(rushUnlocked ? 'rush' : 'standard'); setCafeChanged(false); setScreen('mission'); };
+  const back = () => setScreen(screen==='cafe-choice'||screen==='market'?'map':steps[Math.max(navigationStep - 1, 0)]);
+  const chooseCafe = (mode:Difficulty) => { randomizeOrderTarget(); setDifficulty(mode); setCafeChanged(false); setScreen('mission'); };
+  const enterCafe = () => { if(rushCompleted){setDifficulty('standard');setScreen('cafe-choice');}else chooseCafe(rushUnlocked?'rush':'standard'); };
   const finish = async (finalAssessment: Assessment, finalMessages: ChatMessage[], stats: RushStats) => {
     const timePenalty = difficulty === 'rush' ? rushPenalty(stats.timeouts) : 0;
     const objectiveScore = Math.max(0, Object.values(finalAssessment).filter(value => value === 'correct').length * 15 - hintsUsed * 2 - timePenalty);
@@ -60,12 +64,15 @@ export default function App() {
     setReports(previous => { const updated = [result, ...previous].slice(0, 10); localStorage.setItem(STORAGE_KEY, JSON.stringify(updated)); return updated; });
     setReport(result);
     if (difficulty === 'standard' && !rushUnlocked) { localStorage.setItem(RUSH_KEY, 'yes'); setRushUnlocked(true); setCafeChanged(true); setNewlyUnlocked(true); } else setNewlyUnlocked(false);
+    if(difficulty==='rush'){localStorage.setItem(RUSH_DONE_KEY,'yes');setRushCompleted(true);setCafeChanged(false);}
     setScreen('report');
   };
 
   return <main className="app-shell"><header className="topbar"><button className="brand" onClick={() => setScreen('home')} aria-label="返回首页"><span className="brand-mark">河</span><span>河内的一天</span></button><div className="step-label">{String(navigationStep + 1).padStart(2, '0')} / 05 · {labels[screen]}</div></header><section key={screen} className={`screen screen-${screen}`}>
     {screen === 'home' && <Home onStart={() => setScreen('map')} latest={reports[0]} />}
-    {screen === 'map' && <MapView onEnter={enterCafe} rushUnlocked={rushUnlocked} cafeChanged={cafeChanged} />}
+    {screen === 'map' && <CityScene onEnter={enterCafe} onMarket={()=>setScreen('market')} rushUnlocked={rushUnlocked&&!rushCompleted} cafeChanged={cafeChanged} />}
+    {screen === 'cafe-choice' && <div className="cafe-choice"><p className="eyebrow">CÀ PHÊ · 再次相见</p><h2>Lạc 回到了柜台。</h2><p>咖啡馆的故事已完成。今天想和谁练习？</p><div className="cafe-choice-options"><button onClick={()=>chooseCafe('standard')}><img src={sprite('Lạc','neutral',448)} alt="Lạc"/><span>主线 · 日常点单<strong>Lạc</strong><small>慢慢说，练习一张新订单</small></span></button><button onClick={()=>chooseCafe('rush')}><img src={sprite('Dận','neutral',448)} alt="Dận"/><span>支线 · 忙碌时段<strong>Dận</strong><small>再次挑战限时点单</small></span></button></div><button className="secondary-button" onClick={()=>setScreen('map')}>返回街区，探索同春市场</button></div>}
+    {screen === 'market' && <div className="market-preview"><p className="eyebrow">下一站 · CHỢ ĐỒNG XUÂN</p><h2>同春市场</h2><div className="market-stalls" aria-hidden="true"><span>TRÁI CÂY 🍊</span><span>ĐỒ VẢI 🧵</span><span>ĐẶC SẢN 🧺</span></div><p>穿过热闹的摊位，下一段河内故事将在这里展开。</p><p>购物、问价与议价任务正在筹备中。</p><button className="primary-button" onClick={()=>setScreen('map')}>回到街区继续探索</button></div>}
     {screen === 'mission' && <Mission onStart={resetMission} difficulty={difficulty} />}
     {screen === 'chat' && <Chat messages={messages} setMessages={setMessages} assessment={assessment} setAssessment={setAssessment} hintsUsed={hintsUsed} setHintsUsed={setHintsUsed} onComplete={finish} difficulty={difficulty} />}
     {screen === 'grading' && <Grading difficulty={difficulty} />}
@@ -74,7 +81,6 @@ export default function App() {
 }
 
 function Home({ onStart, latest }: { onStart: () => void; latest?: SavedReport }) { return <div className="hero"><div className="hero-copy"><p className="eyebrow">VIETNAMESE · CITY PRACTICE</p><h1>河内的<br /><em>一天</em></h1><p className="subtitle">在一座虚拟城市中学习真实的越南语</p><div className="home-actions"><button className="primary-button" onClick={onStart}>{latest ? '继续探索' : '开始体验'} <ArrowRight size={20} /></button>{latest && <div className="last-score"><strong>{latest.score}</strong><span>上次任务得分</span></div>}</div></div><div className="street-card" aria-label="河内咖啡店氛围图形"><span className="sun" /><div className="awning"><span /><span /><span /><span /><span /></div><div className="shop-sign">CÀ PHÊ</div><div className="shop-window"><Coffee size={54} /></div><div className="street-line" /><div className="scooter">○━●</div><p>Phố cổ · Hà Nội</p></div></div>; }
-function MapView({ onEnter, rushUnlocked, cafeChanged }: { onEnter: () => void; rushUnlocked: boolean; cafeChanged: boolean }) { return <CityScene onEnter={onEnter} rushUnlocked={rushUnlocked} cafeChanged={cafeChanged} />; }
 function Mission({ onStart, difficulty }: { onStart: () => void; difficulty: Difficulty }) { const rush = difficulty === 'rush'; return <div className={`page-wrap narrow ${rush ? 'rush-mission' : ''}`}><p className="eyebrow">{rush ? '限时挑战 · DẬN · A2' : '任务 01 · 街角咖啡店 · A1'}</p><h2>{rush ? '店员似乎发生了变化。' : '这次，请点'}<br />{rush ? 'Dận 正在等你点单' : orderSummary()}</h2><div className="scenario-note"><strong>{rush ? '新的挑战规则' : '你的情境'}</strong><p>{rush ? `每个问题只有 ${RUSH_QUESTION_LIMIT_MS / 1000} 秒。倒计时精确到毫秒，超时扣 5 分，但不会自动判错，你仍可继续回答。` : '上午九点，你走进河内老城区的一家咖啡店。请用越南语完成这张随机订单。'}</p></div><div className="mission-card"><p>{rush ? 'Dận 的订单仍包含 5 个目标：' : '需要作答 5 个目标（每项只有一次评分机会）：'}</p><ul>{Object.values(criterionLabels).map((label, index) => <li key={label}><span>{String(index + 1).padStart(2, '0')}</span>{label}</li>)}</ul></div><p className="tip">{rush ? '思考要快，表达也要完整。AI 会保持店员身份并根据你的回答继续追问。' : '答错也能继续对话，但首次明确作答的结果会锁定。系统可以理解无声调、大小写和常见空格问题。'}</p><button className="primary-button" onClick={onStart}>{rush ? '接受限时挑战' : '进入咖啡店'} <ArrowRight size={20} /></button></div>; }
 function Grading({ difficulty }: { difficulty: Difficulty }) { return <div className="grading-stage" role="status" aria-live="polite"><div className="grading-orbit"><span /><span /><span /><Sparkles size={32} /></div><p className="eyebrow">任务完成 · 正在整理学习报告</p><h2>AI 正在完成评分</h2><p>正在核对首次作答、越南语表达{difficulty === 'rush' ? '与限时表现' : ''}。总分确认后会自动打开报告。</p><div className="grading-progress"><i /></div><div className="grading-steps"><span>任务正确性</span><span>语言自然度</span><span>{difficulty === 'rush' ? '反应速度' : '学习建议'}</span></div></div>; }
 

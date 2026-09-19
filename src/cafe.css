@@ -48,3 +48,4 @@
  .cafe-scene .character-stage{top:0;bottom:auto;height:39%}.cafe-scene .character-stage img{height:116%;bottom:-10%}
  .cafe-scene .conversation{height:65%}.cafe-scene .speech-status{bottom:8px}.cafe-scene .character-label{bottom:13px}
 }
+@media(max-width:760px){.cafe-scene .composer input{font-size:16px}}

@@ -55,8 +55,9 @@ it('Dận 超时只扣一次分，不自动判错或推进目标', async () => {
   act(() => vi.advanceTimersByTime(12_020));
   expect(screen.getByLabelText('冰牛奶咖啡：未作答')).toBeInTheDocument();
   expect(screen.getByLabelText('一杯：未作答')).toBeInTheDocument();
-  expect(screen.getAllByText(/Hết giờ rồi/)).toHaveLength(1);
-  expect(screen.getByLabelText('本题剩余时间')).toHaveTextContent('已扣 5 分 · 仍可回答');
+  expect(screen.getAllByText(/Bạn gọi món xong chưa/)).toHaveLength(1);
+  expect(screen.getByRole('status')).toHaveTextContent('本题扣除 5 分，你仍可继续回答');
+  expect(screen.getByLabelText('本题剩余时间')).toHaveTextContent('等待作答');
   act(() => vi.advanceTimersByTime(20_000));
-  expect(screen.getAllByText(/Hết giờ rồi/)).toHaveLength(1);
+  expect(screen.getAllByText(/Bạn gọi món xong chưa/)).toHaveLength(1);
 });

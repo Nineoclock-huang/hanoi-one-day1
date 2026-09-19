@@ -52,11 +52,13 @@
 
 /* Keep the mobile layers separate: task strip, character portrait, then dialogue. */
 @media(max-width:760px){
+ .cafe-scene .cafe-task,.cafe-scene .character-stage,.cafe-scene .conversation{transition:top .42s cubic-bezier(.2,.8,.2,1),left .42s cubic-bezier(.2,.8,.2,1),right .42s cubic-bezier(.2,.8,.2,1),bottom .42s cubic-bezier(.2,.8,.2,1),width .42s cubic-bezier(.2,.8,.2,1),height .42s cubic-bezier(.2,.8,.2,1),border-radius .42s ease}
+ .cafe-scene .character-stage img{transition:width .42s cubic-bezier(.2,.8,.2,1),height .42s cubic-bezier(.2,.8,.2,1),left .42s cubic-bezier(.2,.8,.2,1),bottom .42s cubic-bezier(.2,.8,.2,1)}
  .cafe-scene .cafe-task{top:8px;left:8px;right:8px;width:auto;max-height:none;overflow:visible;padding:8px 10px}
  .cafe-task-title{grid-template-columns:1fr auto}.cafe-task-title>span{padding-left:52px}.cafe-task-title>strong{font-size:11px}.cafe-task .task-chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.cafe-task .task-chips::-webkit-scrollbar{display:none}
  .cafe-scene .character-stage{top:104px;height:43%;}
  .cafe-scene .character-stage img{width:68%;height:106%;left:16%;bottom:-3%}
- .cafe-scene .character-label{left:15px;bottom:12px}.cafe-scene .speech-status{bottom:8px}
+ .cafe-scene .character-label{left:15px;bottom:42px}.cafe-scene .speech-status{bottom:8px}
  .cafe-scene .conversation{height:46%;}
 }
 @media(max-height:720px) and (max-width:760px){
@@ -76,10 +78,11 @@
  body.keyboard-open .cafe-scene{border-radius:12px}
  body.keyboard-open .cafe-scene .cafe-task{top:3px;left:4px;right:4px;padding:5px 8px;max-height:52px;overflow:hidden}
  body.keyboard-open .cafe-task-title>span{padding-left:0;font-size:7px}body.keyboard-open .cafe-task-title>strong{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}body.keyboard-open .cafe-task .task-chips{display:none}
- body.keyboard-open .cafe-scene .character-stage{top:54px;left:0;width:100%;height:112px}
- body.keyboard-open .cafe-scene .character-stage img{width:170px;height:145px;left:calc(50% - 85px);bottom:-18px}
- body.keyboard-open .cafe-scene .character-label{left:10px;bottom:5px}body.keyboard-open .cafe-scene .character-label strong{font-size:17px}body.keyboard-open .cafe-scene .character-label span{display:none}body.keyboard-open .cafe-scene .speech-status{display:none}
- body.keyboard-open .cafe-scene .conversation{top:162px;right:3px;bottom:3px;width:calc(100% - 6px);height:auto;padding:7px 9px 8px;border-radius:14px}
+ body.keyboard-open .cafe-scene .character-stage{top:57px;left:3px;right:auto;bottom:3px;width:37%;height:auto}
+ body.keyboard-open .cafe-scene .character-stage img{width:100%;height:100%;left:0;bottom:0;object-position:center bottom}
+ body.keyboard-open .cafe-scene .character-label{left:7px;bottom:7px}body.keyboard-open .cafe-scene .character-label strong{font-size:17px}body.keyboard-open .cafe-scene .character-label span{display:block;font-size:8px}body.keyboard-open .cafe-scene .speech-status{display:none}
+ body.keyboard-open .cafe-scene .conversation{top:57px;right:3px;left:auto;bottom:3px;width:61%;height:auto;padding:7px 8px 8px;border-radius:14px}
  body.keyboard-open .cafe-scene .conversation-head{display:none}body.keyboard-open .cafe-scene .messages{padding:3px 0;gap:4px}body.keyboard-open .cafe-scene .bubble{padding:5px 8px;font-size:11px;line-height:1.35}body.keyboard-open .cafe-scene .bubble span{font-size:9px}
- body.keyboard-open .cafe-scene .composer{padding-top:4px}body.keyboard-open .app-shell>.back-button{display:none}
+ body.keyboard-open .cafe-scene .composer{padding-top:4px;grid-template-columns:auto minmax(0,1fr) auto;gap:3px}body.keyboard-open .cafe-scene .hint-button{padding:6px 5px;font-size:9px}body.keyboard-open .cafe-scene .composer input{padding:7px 6px;font-size:16px}body.keyboard-open .cafe-scene .send-button{padding:6px 7px;font-size:10px}body.keyboard-open .app-shell>.back-button{display:none}
 }
+@media(max-width:760px) and (prefers-reduced-motion:reduce){.cafe-scene .cafe-task,.cafe-scene .character-stage,.cafe-scene .character-stage img,.cafe-scene .conversation{transition:none!important}}

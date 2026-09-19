@@ -26,10 +26,10 @@ test('Worker returns a validated bilingual reply without exposing the key',async
     assert.equal(authorization,'Bearer test-secret');
     assert.deepEqual(upstreamBody.thinking,{type:'disabled'});
     assert.deepEqual(upstreamBody.response_format,{type:'json_object'});
-    assert.equal(upstreamBody.max_tokens,140);
+    assert.equal(upstreamBody.max_tokens,110);
     assert.match(upstreamBody.messages[0].content,/next required field is payment/);
-    assert.match(upstreamBody.messages[0].content,/Never ask about a field already correct/);
-    assert.match(upstreamBody.messages[0].content,/shortest exact supporting substring/);
+    assert.match(upstreamBody.messages[0].content,/Never ask about a resolved field/);
+    assert.match(upstreamBody.messages[0].content,/shortest exact evidence substring/);
     assert.match(upstreamBody.messages.at(-1).content,/only next topic.*payment/);
   }finally{globalThis.fetch=originalFetch}
 });
@@ -46,9 +46,10 @@ test('Worker fails fast instead of doubling latency on an invalid AI response',a
   }finally{globalThis.fetch=originalFetch}
 });
 
-test('Worker returns language-only feedback without changing locked task marks',async()=>{
+test('Worker returns compact language-only feedback without changing locked task marks',async()=>{
   const originalFetch=globalThis.fetch;
-  globalThis.fetch=async()=>new Response(JSON.stringify({choices:[{message:{tool_calls:[{function:{arguments:JSON.stringify({languageScore:18,grammar:'句子结构基本正确',vocabulary:'咖啡词汇需更准确',naturalness:'语气自然',advice:['练习 cà phê sữa đá']})}}]}}]}),{status:200,headers:{'Content-Type':'application/json'}});
+  let upstreamBody;
+  globalThis.fetch=async(_url,options)=>{upstreamBody=JSON.parse(options.body);return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({languageScore:18,grammar:'句子结构基本正确',vocabulary:'咖啡词汇需更准确',naturalness:'语气自然',advice:['练习 cà phê sữa đá']})}}]}),{status:200,headers:{'Content-Type':'application/json'}})};
   try{
     const assessment={product:'incorrect',quantity:'correct',sugar:'correct',service:'correct',payment:'correct'};
     const response=await worker.fetch(new Request('https://worker.example/report',{method:'POST',headers:{Origin:'https://nineoclock-huang.github.io','Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({sessionId:'mobile-session-123456',messages:[{role:'user',vi:'Cho tôi cà phê đen đá'}],target:{product:'milk-iced',quantity:1,sugar:'less',service:'takeaway'},assessment})}),{DEEPSEEK_API_KEY:'test-secret'});
@@ -56,5 +57,8 @@ test('Worker returns language-only feedback without changing locked task marks',
     const report=await response.json();
     assert.equal(report.languageScore,18);
     assert.equal('assessment' in report,false);
+    assert.deepEqual(upstreamBody.response_format,{type:'json_object'});
+    assert.equal(upstreamBody.max_tokens,280);
+    assert.equal('tools' in upstreamBody,false);
   }finally{globalThis.fetch=originalFetch}
 });

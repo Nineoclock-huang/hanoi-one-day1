@@ -78,7 +78,8 @@ export async function requestAiReply(input:{messages:DialogueMessage[];target:Or
       task:input.task,
       clerk:input.clerk||'Lạc',
       difficulty:input.difficulty||'standard',
-    },[6500,2500]);
+    // 对话不能因为移动网络抖动连续等待两轮；3.6 秒内未返回就立即使用本地已校验的推进语。
+    },[3600]);
     if(!response?.ok)return null;
     const data=await response.json() as Partial<AiReply>;
     if(typeof data.vi!=='string'||typeof data.zh!=='string'||!data.vi.trim()||!data.zh.trim())return null;
@@ -93,7 +94,8 @@ export async function requestAiReply(input:{messages:DialogueMessage[];target:Or
 export async function requestAiFeedback(input:{messages:DialogueMessage[];target:OrderTarget;assessment:Assessment;difficulty?:'standard'|'rush';responseTimes?:number[];timeouts?:number}):Promise<AiFeedback|null>{
   if(!endpoint)return null;
   try{
-    const response=await post('/report',{...input,messages:input.messages.filter(message=>message.role==='user').slice(-12)},[11000,6000]);
+    // 评分只请求一次，避免手机端一次失败后再额外等待 6 秒。
+    const response=await post('/report',{...input,messages:input.messages.filter(message=>message.role==='user').slice(-12)},[9000]);
     if(!response?.ok)return null;
     const data=await response.json() as Partial<AiFeedback>;
     if(typeof data.languageScore!=='number'||!Number.isFinite(data.languageScore)||typeof data.grammar!=='string'||typeof data.vocabulary!=='string'||typeof data.naturalness!=='string'||!Array.isArray(data.advice))return null;

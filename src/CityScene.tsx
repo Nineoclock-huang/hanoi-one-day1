@@ -11,6 +11,7 @@ const guideSteps=[
   {title:'寻找咖啡馆',body:'地图上的红色 CÀ PHÊ 标记可以进入。第一版先从咖啡店任务开始，其他地点会陆续开放。'},
   {title:'用越南语开口',body:'进入咖啡店后，像真实点单一样输入越南语。Lạc 会回应你；需要帮助时可以点“提示”。'},
   {title:'每次回答都算数',body:'商品、数量、糖量、堂食或带走、付款各有一次评分机会。答错仍能继续，结束后会得到学习报告。'},
+  {title:'河内见，祝你玩得开心！',body:'教程就到这里。接下来没有固定路线——去看看城市、寻找地标，准备好时再走进咖啡店。现在，把河内交给你自由探索。'},
 ];
 
 export default function CityScene({ onEnter }: { onEnter: () => void }) {
@@ -27,8 +28,10 @@ export default function CityScene({ onEnter }: { onEnter: () => void }) {
   const changeView=(id:CityViewId)=>{initialView.current=id;setView(id);setSelected(null);controls.current?.setView(id)};
   const selectPlace=(id:string)=>{const place=cityPlace(id);if(!place)return;initialView.current=place.district;setView(place.district);controls.current?.focusPlace(id);setSelected(id)};
   const [guideStep,setGuideStep]=useState(()=>localStorage.getItem(GUIDE_KEY)==='yes'?-1:0);
-  const finishGuide=()=>{localStorage.setItem(GUIDE_KEY,'yes');setGuideStep(-1)};
-  const nextGuide=()=>{if(guideStep>=guideSteps.length-1)finishGuide();else setGuideStep(guideStep+1)};
+  const [guideLeaving,setGuideLeaving]=useState(false);
+  const finishGuide=()=>{localStorage.setItem(GUIDE_KEY,'yes');setGuideLeaving(false);setGuideStep(-1)};
+  const nextGuide=()=>{if(guideLeaving)return;if(guideStep>=guideSteps.length-1)setGuideLeaving(true);else setGuideStep(guideStep+1)};
+  useEffect(()=>{if(!guideLeaving)return;const timer=window.setTimeout(finishGuide,820);return()=>window.clearTimeout(timer)},[guideLeaving]);
   useEffect(() => {
     let cancelled = false;
     let handle: CityHandle | undefined;
@@ -62,13 +65,14 @@ export default function CityScene({ onEnter }: { onEnter: () => void }) {
       </div>
       <div className="city-legend"><span className="legend-dot"/> 咖啡任务 <span className="legend-muted"/> 城市地标 <small>固定高清镜头 · 点击上方分区切换视角</small></div>
       {selected&&guideStep<0&&<aside className="city-place-card" aria-label="地点介绍"><button className="city-place-close" aria-label="关闭地点介绍" onClick={()=>setSelected(null)}><X size={16}/></button><small>{cityPlace(selected).status==='planned'?'未来场景 · 即将开放':cityPlace(selected).status==='open'?'已开放 · 越南语任务':'河内地标'}</small><h3>{cityPlace(selected).name}</h3><em>{cityPlace(selected).vietnamese}</em><p>{cityPlace(selected).description}</p>{selected==='cafe'?<button className="city-enter" onClick={onEnter}>进入咖啡店 <ArrowUpRight size={15}/></button>:<span className="city-place-note">{cityPlace(selected).status==='planned'?'任务尚未开放，敬请期待':'点击地图上的咖啡店开始语言练习'}</span>}</aside>}
-      {guideStep>=0&&<div className="city-tutorial" role="dialog" aria-label="新手教程" onClick={nextGuide} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();nextGuide()}}} tabIndex={0}>
-        <div className="guide-card" key={guideStep}><span className="guide-kicker">城市引导 · {guideStep+1}/{guideSteps.length}</span><h3>{guideSteps[guideStep].title}</h3><p>{guideSteps[guideStep].body}</p><span className="guide-next">{guideStep===guideSteps.length-1?'开始探索':'点击屏幕继续'} <ArrowUpRight size={15}/></span></div>
-        <picture style={{display:"contents"}}><source media="(max-width: 760px)" srcSet={asset("guide-320.webp")}/><img className="guide-character" src={asset("guide-640.webp")} decoding="async" alt="拿着地图的新手引导员"/></picture>
+      {guideStep>=0&&<div className={`city-tutorial ${guideStep===guideSteps.length-1?'guide-goodbye':''} ${guideLeaving?'is-leaving':''}`} role="dialog" aria-label="新手教程" onClick={nextGuide} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();nextGuide()}}} tabIndex={0}>
+        <div className="guide-card" key={guideStep}><span className="guide-kicker">城市引导 · {guideStep+1}/{guideSteps.length}</span><h3>{guideSteps[guideStep].title}</h3><p>{guideSteps[guideStep].body}</p><span className="guide-next">{guideStep===guideSteps.length-1?(guideLeaving?'正在进入城市…':'挥手告别，开始探索'):'点击屏幕继续'} <ArrowUpRight size={15}/></span></div>
+        <picture style={{display:"contents"}}><source media="(max-width: 760px)" srcSet={asset(guideStep===guideSteps.length-1?'guide-wave-320.png':'guide-320.webp')}/><img className="guide-character" src={asset(guideStep===guideSteps.length-1?'guide-wave-640.png':'guide-640.webp')} decoding="async" alt={guideStep===guideSteps.length-1?'挥手告别的新手引导员':'拿着地图的新手引导员'}/></picture>
+        {guideStep===guideSteps.length-1&&<div className="guide-farewell-fx" aria-hidden="true"><i/><i/><i/><i/><i/><span>Hẹn gặp lại!</span></div>}
         <button className="guide-skip" onClick={event=>{event.stopPropagation();finishGuide()}}>跳过引导</button>
       </div>}
     </div>
-    {guideStep<0&&<button className="guide-replay" onClick={()=>setGuideStep(0)}>重看引导</button>}
+    {guideStep<0&&<button className="guide-replay" onClick={()=>{setGuideLeaving(false);setGuideStep(0)}}>重看引导</button>}
     <details className="city-map-sources"><summary>地图参考</summary>{CITY_MAP_SOURCES.map(source=><a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.label}</a>)}<span>景点按真实相对方位布置；店铺、道路与建筑为教学场景的简化设计。</span></details>
   </div>;
 }

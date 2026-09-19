@@ -26,7 +26,7 @@ test('Worker returns a validated bilingual reply without exposing the key',async
     assert.equal(authorization,'Bearer test-secret');
     assert.deepEqual(upstreamBody.thinking,{type:'disabled'});
     assert.deepEqual(upstreamBody.response_format,{type:'json_object'});
-    assert.equal(upstreamBody.max_tokens,110);
+    assert.equal(upstreamBody.max_tokens,220);
     assert.match(upstreamBody.messages[0].content,/next required field is payment/);
     assert.match(upstreamBody.messages[0].content,/Never ask about a resolved field/);
     assert.match(upstreamBody.messages[0].content,/shortest exact evidence substring/);

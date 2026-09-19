@@ -1,22 +1,24 @@
 import type {Assessment,Criteria,OrderTarget} from './engine';
 
 export type DialogueMessage={role:'clerk'|'user';vi:string;zh?:string};
-export type AiReply={vi:string;zh:string;attempts?:Partial<Assessment>};
+export type ClerkMood='neutral'|'listening'|'happy'|'clarify';
+export type AiReply={vi:string;zh:string;attempts?:Partial<Assessment>;mood?:ClerkMood};
 export type AiFeedback={languageScore:number;grammar:string;vocabulary:string;naturalness:string;advice:string[]};
 const defaultEndpoint=import.meta.env.MODE==='test'?'':'https://hanoi-one-day-ai.hanoi-one-day.workers.dev';
 const endpoint=((import.meta.env.VITE_AI_ENDPOINT as string|undefined)||defaultEndpoint).replace(/\/$/,'');
 export const isAiConfigured=Boolean(endpoint);
 
-export async function requestAiReply(input:{messages:DialogueMessage[];target:OrderTarget;criteria:Criteria;assessment:Assessment;suggestedReply:AiReply;task:string}):Promise<AiReply|null>{
+export async function requestAiReply(input:{messages:DialogueMessage[];target:OrderTarget;criteria:Criteria;assessment:Assessment;beforeAssessment:Assessment;suggestedReply:AiReply;task:string}):Promise<AiReply|null>{
   if(!endpoint)return null;
   const controller=new AbortController();
-  const timeout=window.setTimeout(()=>controller.abort(),16000);
+  const timeout=window.setTimeout(()=>controller.abort(),9000);
   try{
     const response=await fetch(`${endpoint}/chat`,{method:'POST',headers:{'Content-Type':'application/json'},signal:controller.signal,body:JSON.stringify({
-      messages:input.messages.slice(-6).map(message=>({role:message.role,vi:message.vi})),
+      messages:input.messages.slice(-4).map(message=>({role:message.role,vi:message.vi})),
       target:input.target,
       criteria:input.criteria,
       assessment:input.assessment,
+      beforeAssessment:input.beforeAssessment,
       suggestedReply:input.suggestedReply,
       task:input.task,
     })});
@@ -24,7 +26,8 @@ export async function requestAiReply(input:{messages:DialogueMessage[];target:Or
     const data=await response.json() as Partial<AiReply>;
     if(typeof data.vi!=='string'||typeof data.zh!=='string'||!data.vi.trim()||!data.zh.trim())return null;
     const attempts=Object.fromEntries((['product','quantity','sugar','service','payment']as const).filter(key=>data.attempts?.[key]==='correct'||data.attempts?.[key]==='incorrect').map(key=>[key,data.attempts?.[key]])) as Partial<Assessment>;
-    return{vi:data.vi.trim().slice(0,320),zh:data.zh.trim().slice(0,240),attempts};
+    const mood=(['neutral','listening','happy','clarify'] as const).includes(data.mood as ClerkMood)?data.mood as ClerkMood:undefined;
+    return{vi:data.vi.trim().slice(0,320),zh:data.zh.trim().slice(0,240),attempts,mood};
   }catch{return null}finally{window.clearTimeout(timeout)}
 }
 

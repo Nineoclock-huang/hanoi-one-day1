@@ -3,24 +3,24 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import CityScene from './CityScene';
 import { CITY_PLACES, CITY_VIEWS, cityPlace, clampCityZoom } from './cityData';
 
-const renderer=vi.hoisted(()=>({dispose:vi.fn(),setView:vi.fn(),zoom:vi.fn()}));
+const renderer=vi.hoisted(()=>({dispose:vi.fn(),setView:vi.fn()}));
 vi.mock('./cityRenderer',()=>({mountCity:()=>renderer}));
 beforeEach(()=>localStorage.setItem('hanoi-one-day-guide-seen','yes'));
 afterEach(()=>{cleanup();localStorage.clear();vi.clearAllMocks()});
 
-it('切换城区、缩放和复位均传给相机控制器',async()=>{
+it('固定镜头可切换城区和复位，不提供自由缩放',async()=>{
   render(<CityScene onEnter={vi.fn()}/>);
-  await waitFor(()=>expect(screen.getByRole('button',{name:'放大地图'})).toBeEnabled());
+  await waitFor(()=>expect(screen.getByRole('button',{name:'重置地图视角'})).toBeEnabled());
   fireEvent.click(screen.getByRole('button',{name:'西湖'}));
   expect(renderer.setView).toHaveBeenLastCalledWith('west-lake');
   expect(screen.getByRole('button',{name:'西湖'})).toHaveAttribute('aria-pressed','true');
-  fireEvent.click(screen.getByRole('button',{name:'放大地图'}));expect(renderer.zoom).toHaveBeenCalledWith(1.25);
+  expect(screen.queryByRole('button',{name:'放大地图'})).toBeNull();
   fireEvent.click(screen.getByRole('button',{name:'重置地图视角'}));expect(renderer.setView).toHaveBeenLastCalledWith('overview');
 });
 
 it('可查找所有地标；规划场景不会误进入咖啡任务',async()=>{
   const onEnter=vi.fn();render(<CityScene onEnter={onEnter}/>);
-  await waitFor(()=>expect(screen.getByRole('button',{name:'放大地图'})).toBeEnabled());
+  await waitFor(()=>expect(screen.getByRole('button',{name:'重置地图视角'})).toBeEnabled());
   fireEvent.change(screen.getByRole('combobox'),{target:{value:'literature'}});
   const card=screen.getByRole('complementary',{name:'地点介绍'});
   expect(within(card).getByText('Văn Miếu – Quốc Tử Giám')).toBeInTheDocument();

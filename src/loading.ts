@@ -20,6 +20,7 @@ export function warmImage(name: string, url = asset(name)) {
 }
 export function warmCafe() {
   const mobile = window.innerWidth <= 760;
-  warmImage(`clerk-${mobile ? 448 : 768}.webp`);
+  const size=mobile?448:768;
+  for(const mood of ['', '-listening', '-happy', '-clarify'])warmImage(`clerk${mood}-${size}.webp`);
   warmImage('cafe-' + (mobile ? 'mobile' : 'desktop'), mobile ? cafeMobile : cafeDesktop);
 }

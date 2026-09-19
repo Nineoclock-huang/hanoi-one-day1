@@ -1,11 +1,10 @@
 import * as T from 'three';
 import { renderQuality } from './renderQuality';
-import { MapControls } from 'three/examples/jsm/controls/MapControls.js';
-import { CITY_PLACES, CITY_VIEWS, cityPlace, clampCityZoom, type CityViewId } from './cityData';
+import { CITY_PLACES, CITY_VIEWS, cityPlace, type CityViewId } from './cityData';
 
 type Point = [number, number];
 type Marker = { id: string; element: HTMLElement };
-export type CityHandle = { dispose: () => void; setView: (id: CityViewId) => void; zoom: (factor: number) => void };
+export type CityHandle = { dispose: () => void; setView: (id: CityViewId) => void };
 type Options = { markers: Marker[]; onSelect: (id: string) => void; initialView: CityViewId };
 
 export function mountCity(host: HTMLElement, pin: HTMLElement, onEnter: () => void, onLost: () => void, options: Options): CityHandle {
@@ -18,9 +17,7 @@ export function mountCity(host: HTMLElement, pin: HTMLElement, onEnter: () => vo
   host.appendChild(renderer.domElement);
   const scene = new T.Scene();
   const camera = new T.OrthographicCamera(-50, 50, 35, -35, .1, 260);
-  const controls = new MapControls(camera, renderer.domElement);
-  controls.enableRotate = false; controls.enableDamping = true; controls.dampingFactor = .13;
-  controls.screenSpacePanning = false; controls.minZoom = .75; controls.maxZoom = 2.2; controls.zoomSpeed = .6;
+  renderer.domElement.style.touchAction='manipulation';
   scene.add(new T.HemisphereLight(0xf5fbff, 0x788777, 1.9));
   const sun = new T.DirectionalLight(0xfff2d5, 2.4);
   sun.position.set(-38, 75, 30); sun.castShadow = true; sun.shadow.mapSize.set(quality.shadowSize, quality.shadowSize);
@@ -126,33 +123,29 @@ export function mountCity(host: HTMLElement, pin: HTMLElement, onEnter: () => vo
   const trafficRoutes=[roads[3],roads[9]].map(route=>new T.CatmullRomCurve3(route.map(([x,z])=>new T.Vector3(x,0,z))));
   for(let i=0;i<8;i++){const car=new T.Group(),body=new T.Mesh(carGeometry,standard(['#faf3dc','#4b7d88','#c6755c','#8fa69d'][i%4])),cabin=new T.Mesh(carGeometry,standard('#466c75'));body.scale.set(.45,.28,.9);body.position.y=.46;cabin.scale.set(.36,.18,.45);cabin.position.y=.68;car.add(body,cabin);scene.add(car);traffic.push(car);}
   let view=CITY_VIEWS.find(v=>v.id===options.initialView)!;
-  let disposed=false,frame=0,last=0,labelsDirty=true;
+  let disposed=false,frame=0,labelsDirty=true;
   const markerList=[{id:'cafe',element:pin},...options.markers].sort((a,b)=>cityPlace(b.id).priority-cityPlace(a.id).priority);
   const projectLabels=()=>{
     const w=host.clientWidth,h=host.clientHeight,occupied:{x:number;y:number;w:number;h:number}[]=[];
     host.parentElement?.querySelectorAll<HTMLElement>('.city-map-caption,.city-compass,.city-map-tools').forEach(el=>occupied.push({x:el.offsetLeft,y:el.offsetTop,w:el.offsetWidth,h:el.offsetHeight}));
     markerList.forEach(({id,element})=>{const p=cityPlace(id),v=new T.Vector3(p.x,p.height,p.z).project(camera),x=(v.x*.5+.5)*w,y=(-v.y*.5+.5)*h,ew=element.offsetWidth||100,eh=element.offsetHeight||28,b={x:x-ew/2,y:y-eh,w:ew,h:eh};const outside=b.x<8||b.x+b.w>w-8||b.y<8||y>h-48,collision=occupied.some(a=>b.x<a.x+a.w+8&&b.x+b.w+8>a.x&&b.y<a.y+a.h+7&&b.y+b.h+7>a.y);element.style.visibility=outside||collision?'hidden':'visible';element.style.left=`${x}px`;element.style.top=`${y}px`;if(!outside&&!collision)occupied.push(b);});
   };
-  const resize=()=>{if(disposed)return;const w=host.clientWidth,h=host.clientHeight;if(!w||!h)return;const aspect=w/h,halfHeight=Math.max(view.span*.66,view.span*.7/aspect);camera.left=-halfHeight*aspect;camera.right=halfHeight*aspect;camera.top=halfHeight;camera.bottom=-halfHeight;camera.updateProjectionMatrix();renderer.setSize(w,h);labelsDirty=true;};
-  const setView=(id:CityViewId)=>{view=CITY_VIEWS.find(v=>v.id===id)!;controls.target.set(view.x,0,view.z);camera.position.set(view.x+52,72,view.z+78);camera.zoom=1;camera.lookAt(controls.target);controls.update();resize();};
+  const renderScene=()=>{if(disposed)return;camera.updateMatrixWorld();if(labelsDirty){projectLabels();labelsDirty=false;}renderer.render(scene,camera);};
+  const scheduleRender=()=>{cancelAnimationFrame(frame);frame=requestAnimationFrame(renderScene);};
+  const resize=()=>{if(disposed)return;const w=host.clientWidth,h=host.clientHeight;if(!w||!h)return;const aspect=w/h,halfHeight=Math.max(view.span*.66,view.span*.7/aspect);camera.left=-halfHeight*aspect;camera.right=halfHeight*aspect;camera.top=halfHeight;camera.bottom=-halfHeight;camera.updateProjectionMatrix();renderer.setSize(w,h);labelsDirty=true;scheduleRender();};
+  const setView=(id:CityViewId)=>{view=CITY_VIEWS.find(v=>v.id===id)!;const target=new T.Vector3(view.x,0,view.z);camera.position.set(view.x+52,72,view.z+78);camera.zoom=1;camera.lookAt(target);resize();};
   setView(options.initialView);const observer=new ResizeObserver(resize);observer.observe(host);
-  const labelObserver=new ResizeObserver(()=>{labelsDirty=true;});markerList.forEach(({element})=>labelObserver.observe(element));
-  const changed=()=>{labelsDirty=true;};controls.addEventListener('change',changed);
-  const pointer=new T.Vector2(),raycaster=new T.Raycaster();let downX=0,downY=0,moved=false,pointerCount=0;
-  const down=(e:PointerEvent)=>{pointerCount++;downX=e.clientX;downY=e.clientY;moved=pointerCount>1;};
-  const move=(e:PointerEvent)=>{if(Math.hypot(e.clientX-downX,e.clientY-downY)>5)moved=true;};
-  const cancel=()=>{pointerCount=0;moved=true;};
+  const labelObserver=new ResizeObserver(()=>{labelsDirty=true;scheduleRender();});markerList.forEach(({element})=>labelObserver.observe(element));
+  const pointer=new T.Vector2(),raycaster=new T.Raycaster();
   const up=(e:PointerEvent)=>{
-    pointerCount=Math.max(0,pointerCount-1);if(moved)return;
     const r=renderer.domElement.getBoundingClientRect();pointer.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);raycaster.setFromCamera(pointer,camera);
     const hits=CITY_PLACES.flatMap(p=>{const bounds=new T.Box3(new T.Vector3(p.x-1.4,.2,p.z-1.4),new T.Vector3(p.x+1.4,p.height+.3,p.z+1.4)),hit=raycaster.ray.intersectBox(bounds,new T.Vector3());return hit?[{id:p.id,distance:hit.distanceTo(camera.position)}]:[];}).sort((a,b)=>a.distance-b.distance);
     if(hits[0]?.id==='cafe')onEnter();else if(hits[0])options.onSelect(hits[0].id);
   };
-  renderer.domElement.addEventListener('pointerdown',down);renderer.domElement.addEventListener('pointermove',move);renderer.domElement.addEventListener('pointerup',up);renderer.domElement.addEventListener('pointercancel',cancel);
-  const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');
-  // Only traffic moves; the city and sun are static, so reuse their shadow map.
+  renderer.domElement.addEventListener('pointerup',up);
+  // The atlas is a fixed high-quality view. Render only when its size or district changes.
   renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;
-  const draw=(time:number)=>{if(disposed)return;frame=requestAnimationFrame(draw);if(document.hidden||time-last<quality.frameInterval)return;last=time;controls.update();camera.updateMatrixWorld();if(labelsDirty){projectLabels();labelsDirty=false;}traffic.forEach((car,i)=>{const route=trafficRoutes[i<4?0:1],t=((reduced.matches?0:time*.000025)+i*.23)%1,position=route.getPointAt(t),direction=route.getTangentAt(t);car.position.copy(position);car.rotation.y=Math.atan2(direction.x,direction.z);});renderer.render(scene,camera);};frame=requestAnimationFrame(draw);
+  traffic.forEach((car,i)=>{const route=trafficRoutes[i<4?0:1],position=route.getPointAt((i*.23)%1),direction=route.getTangentAt((i*.23)%1);car.position.copy(position);car.rotation.y=Math.atan2(direction.x,direction.z);});scheduleRender();
   const lost=(event:Event)=>{event.preventDefault();cancelAnimationFrame(frame);onLost();};renderer.domElement.addEventListener('webglcontextlost',lost);
-  return {setView,zoom:(factor:number)=>{camera.zoom=clampCityZoom(camera.zoom*factor);camera.updateProjectionMatrix();labelsDirty=true;},dispose:()=>{disposed=true;cancelAnimationFrame(frame);observer.disconnect();labelObserver.disconnect();controls.removeEventListener('change',changed);controls.dispose();renderer.domElement.removeEventListener('pointerdown',down);renderer.domElement.removeEventListener('pointermove',move);renderer.domElement.removeEventListener('pointerup',up);renderer.domElement.removeEventListener('pointercancel',cancel);renderer.domElement.removeEventListener('webglcontextlost',lost);Object.values(primitives).forEach(g=>g.dispose());geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());renderer.dispose();renderer.domElement.remove();}};
+  return {setView,dispose:()=>{disposed=true;cancelAnimationFrame(frame);observer.disconnect();labelObserver.disconnect();renderer.domElement.removeEventListener('pointerup',up);renderer.domElement.removeEventListener('webglcontextlost',lost);Object.values(primitives).forEach(g=>g.dispose());geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());renderer.dispose();renderer.domElement.remove();}};
 }

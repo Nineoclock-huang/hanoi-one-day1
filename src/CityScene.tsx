@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Coffee, ArrowUpRight, Sun, Plus, Minus, LocateFixed, Landmark, LockKeyhole, X } from 'lucide-react';
+import { Coffee, ArrowUpRight, Sun, LocateFixed, Landmark, LockKeyhole, X } from 'lucide-react';
 import { CITY_PLACES, CITY_VIEWS, CITY_MAP_SOURCES, cityPlace, type CityViewId } from './cityData';
 import type { CityHandle } from './cityRenderer';
 import { asset, loadCity } from './loading';
@@ -58,9 +58,9 @@ export default function CityScene({ onEnter }: { onEnter: () => void }) {
       <div className="city-compass"><span>北 N</span><i>↑</i></div>
       <div className="city-map-tools">
         <select aria-label="查找景点或场景" value={selected||''} onChange={event=>selectPlace(event.target.value)}><option value="">寻找一个地点…</option>{CITY_PLACES.map(place=><option key={place.id} value={place.id}>{place.name}{place.status==='planned'?' · 即将开放':''}</option>)}</select>
-        <div className="city-zoom"><button aria-label="放大地图" disabled={status!=='ready'} onClick={()=>controls.current?.zoom(1.25)}><Plus size={17}/></button><button aria-label="缩小地图" disabled={status!=='ready'} onClick={()=>controls.current?.zoom(.8)}><Minus size={17}/></button><button aria-label="重置地图视角" onClick={()=>changeView('overview')}><LocateFixed size={17}/></button></div>
+        <div className="city-zoom"><button aria-label="重置地图视角" onClick={()=>changeView('overview')}><LocateFixed size={17}/></button></div>
       </div>
-      <div className="city-legend"><span className="legend-dot"/> 咖啡任务 <span className="legend-muted"/> 城市地标 <small>拖动平移 · 双指 / 滚轮缩放</small></div>
+      <div className="city-legend"><span className="legend-dot"/> 咖啡任务 <span className="legend-muted"/> 城市地标 <small>固定高清镜头 · 点击上方分区切换视角</small></div>
       {selected&&guideStep<0&&<aside className="city-place-card" aria-label="地点介绍"><button className="city-place-close" aria-label="关闭地点介绍" onClick={()=>setSelected(null)}><X size={16}/></button><small>{cityPlace(selected).status==='planned'?'未来场景 · 即将开放':cityPlace(selected).status==='open'?'已开放 · 越南语任务':'河内地标'}</small><h3>{cityPlace(selected).name}</h3><em>{cityPlace(selected).vietnamese}</em><p>{cityPlace(selected).description}</p>{selected==='cafe'?<button className="city-enter" onClick={onEnter}>进入咖啡店 <ArrowUpRight size={15}/></button>:<span className="city-place-note">{cityPlace(selected).status==='planned'?'任务尚未开放，敬请期待':'点击地图上的咖啡店开始语言练习'}</span>}</aside>}
       {guideStep>=0&&<div className="city-tutorial" role="dialog" aria-label="新手教程" onClick={nextGuide} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();nextGuide()}}} tabIndex={0}>
         <div className="guide-card" key={guideStep}><span className="guide-kicker">城市引导 · {guideStep+1}/{guideSteps.length}</span><h3>{guideSteps[guideStep].title}</h3><p>{guideSteps[guideStep].body}</p><span className="guide-next">{guideStep===guideSteps.length-1?'开始探索':'点击屏幕继续'} <ArrowUpRight size={15}/></span></div>

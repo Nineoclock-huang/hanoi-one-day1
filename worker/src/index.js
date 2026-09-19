@@ -1,8 +1,9 @@
 const allowedOrigins=new Set(['https://nineoclock-huang.github.io','http://localhost:5173','http://127.0.0.1:5173']);
 const buckets=new Map();
-function cors(origin){return{'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Methods':'POST, OPTIONS','Access-Control-Allow-Headers':'Content-Type','Vary':'Origin','Content-Type':'application/json; charset=utf-8'}}
+function originAllowed(origin){return allowedOrigins.has(origin)||/^http:\/\/(?:localhost|127\.0\.0\.1):\d+$/.test(origin)}
+function cors(origin){return{'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Methods':'POST, OPTIONS','Access-Control-Allow-Headers':'Content-Type','Access-Control-Max-Age':'86400','Vary':'Origin','Content-Type':'application/json; charset=utf-8'}}
 function json(data,status,origin){return new Response(JSON.stringify(data),{status,headers:cors(origin)})}
-function rateLimited(request){const key=request.headers.get('CF-Connecting-IP')||'unknown',now=Date.now(),recent=(buckets.get(key)||[]).filter(time=>now-time<60000);recent.push(now);buckets.set(key,recent);return recent.length>24}
+function rateLimited(request,sessionId){const ip=request.headers.get('CF-Connecting-IP')||'unknown',session=typeof sessionId==='string'&&/^[\w-]{16,80}$/.test(sessionId)?sessionId:'anonymous',key=`${ip}:${session}`,now=Date.now(),recent=(buckets.get(key)||[]).filter(time=>now-time<60000);recent.push(now);buckets.set(key,recent);return recent.length>30}
 function validText(value,max){return typeof value==='string'&&value.trim().length>0&&value.length<=max}
 const criteriaKeys=['product','quantity','sugar','service','payment'];
 function assessedAttempts(value){return Object.fromEntries(criteriaKeys.map(key=>[key,value?.[key]==='correct'||value?.[key]==='incorrect'?value[key]:'not_attempted']))}
@@ -11,13 +12,13 @@ function assessedConfidence(value){return Object.fromEntries(criteriaKeys.map(ke
 export default{
   async fetch(request,env){
     const url=new URL(request.url),origin=request.headers.get('Origin')||'';
-    if(request.method==='GET'&&url.pathname==='/health')return json({ok:true,model:'deepseek-flash'},200,allowedOrigins.has(origin)?origin:'https://nineoclock-huang.github.io');
-    if(!allowedOrigins.has(origin))return json({error:'Origin not allowed'},403,'https://nineoclock-huang.github.io');
+    if(request.method==='GET'&&url.pathname==='/health')return json({ok:true,model:'deepseek-flash'},200,originAllowed(origin)?origin:'https://nineoclock-huang.github.io');
+    if(!originAllowed(origin))return json({error:'Origin not allowed'},403,'https://nineoclock-huang.github.io');
     if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors(origin)});
     if(request.method!=='POST'||(url.pathname!=='/chat'&&url.pathname!=='/report'))return json({error:'Not found'},404,origin);
-    if(rateLimited(request))return json({error:'Too many requests'},429,origin);
     if(!env.DEEPSEEK_API_KEY)return json({error:'AI is not configured'},503,origin);
     let body;try{body=await request.json()}catch{return json({error:'Invalid JSON'},400,origin)}
+    if(rateLimited(request,body.sessionId))return json({error:'Too many requests'},429,origin);
     if(url.pathname==='/report'){
       if(!Array.isArray(body.messages)||body.messages.length>20||!body.target||!body.assessment||criteriaKeys.some(key=>!['correct','incorrect'].includes(body.assessment[key])))return json({error:'Invalid report request'},400,origin);
       const expressions=body.messages.filter(message=>message.role==='user'&&validText(message.vi,320)).slice(-12).map(message=>message.vi);
@@ -26,7 +27,7 @@ export default{
       const prompt=`You are a supportive Vietnamese A1 language tutor reviewing a Hanoi cafe role-play. Give a concise, concrete learning report in Simplified Chinese based ONLY on the learner's expressions. The task target is ${JSON.stringify(body.target)}. First-attempt task results are ${JSON.stringify(body.assessment)} and are LOCKED by the game; do not change, rescore, or dispute them.${timing} Assess only Vietnamese grammar, vocabulary appropriateness, and naturalness, from 0 to 25 total. Do not award high language points for unrelated or nonsensical text. Identify specific phrases to improve, explain why, and give up to three actionable practice suggestions with corrected Vietnamese examples. Never invent errors not present in the expressions. Return via submit_language_report.`;
       const reportTool={type:'function',function:{name:'submit_language_report',description:'Return a language-only score and specific learning advice.',parameters:{type:'object',properties:{languageScore:{type:'integer'},grammar:{type:'string'},vocabulary:{type:'string'},naturalness:{type:'string'},advice:{type:'array',items:{type:'string'}}},required:['languageScore','grammar','vocabulary','naturalness','advice'],additionalProperties:false}}};
       for(let attempt=0;attempt<2;attempt++){
-        let upstream;try{upstream=await fetch('https://api.deepseek.com/chat/completions',{method:'POST',headers:{Authorization:`Bearer ${env.DEEPSEEK_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({model:'deepseek-flash',messages:[{role:'system',content:attempt?`${prompt}\nThe previous reply was invalid. Call submit_language_report with brief valid fields.`:prompt},{role:'user',content:JSON.stringify(expressions)}],thinking:{type:'disabled'},tools:[reportTool],tool_choice:{type:'function',function:{name:'submit_language_report'}},max_tokens:800,temperature:attempt?.1:.3,stream:false})})}catch{return json({error:'AI unavailable'},502,origin)}
+        let upstream;try{upstream=await fetch('https://api.deepseek.com/chat/completions',{method:'POST',headers:{Authorization:`Bearer ${env.DEEPSEEK_API_KEY}`,'Content-Type':'application/json'},signal:request.signal,body:JSON.stringify({model:'deepseek-flash',messages:[{role:'system',content:attempt?`${prompt}\nThe previous reply was invalid. Call submit_language_report with brief valid fields.`:prompt},{role:'user',content:JSON.stringify(expressions)}],thinking:{type:'disabled'},tools:[reportTool],tool_choice:{type:'function',function:{name:'submit_language_report'}},max_tokens:500,temperature:attempt?.1:.3,stream:false})})}catch{return json({error:'AI unavailable'},502,origin)}
         if(!upstream.ok)return json({error:'AI request failed'},502,origin);
         try{const result=await upstream.json(),args=result.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments,feedback=JSON.parse(args);if(!Number.isFinite(feedback.languageScore)||!validText(feedback.grammar,240)||!validText(feedback.vocabulary,240)||!validText(feedback.naturalness,240)||!Array.isArray(feedback.advice))throw new Error();return json({languageScore:Math.max(0,Math.min(25,Math.round(feedback.languageScore))),grammar:feedback.grammar,vocabulary:feedback.vocabulary,naturalness:feedback.naturalness,advice:feedback.advice.filter(value=>validText(value,180)).slice(0,3)},200,origin)}catch{if(attempt===1)return json({error:'Invalid AI report'},502,origin)}
       }

@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useRef, useState, type Dispatch, type SetStateAct
 import { ArrowLeft, ArrowRight, Check, Coffee, Lightbulb, RotateCcw, Sparkles, Timer, X } from 'lucide-react';
 import CityScene from './CityScene';
 import { asset, loadCity, warmCafe } from './loading';
-import { type AiFeedback, type ClerkMood, isAiConfigured, requestAiFeedback, requestAiReply, trustedAiAttempts } from './ai';
+import { type AiFeedback, type ClerkMood, isAiConfigured, requestAiFeedback, requestAiReply, trustedAiAttempts, warmAi } from './ai';
 import { analyzeAttempts, type Assessment, clerkReply, correctCriteria, type Criteria, criterionLabels, currentOrderTarget, emptyAssessment, finalScore, hints, mergeAssessment, normalizeVietnamese, orderSummary, randomizeOrderTarget, recommendedExpression, resolvedCount, resolvedCriteria } from './engine';
 import { keyboardIsOpen } from './mobileViewport';
 import { averageResponseTime, formatCountdown, RUSH_QUESTION_LIMIT_MS, rushPenalty } from './rush';
@@ -40,7 +40,7 @@ export default function App() {
   const greeting = (mode: Difficulty): ChatMessage => mode === 'rush' ? { role: 'clerk', vi: 'Chào bạn. Gọi món nhanh nhé, tôi đang rất bận.', zh: '你好。请快点单，我现在很忙。' } : { role: 'clerk', vi: 'Xin chào! Bạn muốn uống gì?', zh: '你好！你想喝什么？' };
   const resetMission = () => { setMessages([greeting(difficulty)]); setAssessment({ ...emptyAssessment }); setHintsUsed(0); setReport(null); setScreen('chat'); };
 
-  useEffect(() => { const timer = window.setTimeout(() => { if (screen === 'home') void loadCity().catch(() => {}); if (screen === 'map' || screen === 'mission') warmCafe(rushUnlocked); }, screen === 'home' ? 1200 : 300); return () => window.clearTimeout(timer); }, [screen, rushUnlocked]);
+  useEffect(() => { const timer = window.setTimeout(() => { if (screen === 'home') void loadCity().catch(() => {}); if (screen === 'map' || screen === 'mission') { warmCafe(rushUnlocked); void warmAi(); } }, screen === 'home' ? 1200 : 300); return () => window.clearTimeout(timer); }, [screen, rushUnlocked]);
   useEffect(() => {
     const viewport = window.visualViewport;
     const update = () => { const height = Math.round(viewport?.height || window.innerHeight); if (screen !== 'chat' || height > viewportBaseline.current) viewportBaseline.current = Math.max(viewportBaseline.current, height); document.documentElement.style.setProperty('--app-height', `${height}px`); document.body.classList.toggle('chat-viewport', screen === 'chat'); document.body.classList.toggle('keyboard-open', screen === 'chat' && keyboardIsOpen(viewportBaseline.current, height)); if (screen === 'chat' && window.scrollY) window.scrollTo(0, 0); };

@@ -7,6 +7,13 @@ test('Worker rejects unknown websites before contacting DeepSeek',async()=>{
   assert.equal(response.status,403);
 });
 
+test('Worker caches browser preflight and accepts local development ports',async()=>{
+  const response=await worker.fetch(new Request('https://worker.example/chat',{method:'OPTIONS',headers:{Origin:'http://127.0.0.1:5174'}}),{});
+  assert.equal(response.status,204);
+  assert.equal(response.headers.get('access-control-allow-origin'),'http://127.0.0.1:5174');
+  assert.equal(response.headers.get('access-control-max-age'),'86400');
+});
+
 test('Worker returns a validated bilingual reply without exposing the key',async()=>{
   const originalFetch=globalThis.fetch;
   let authorization='';
@@ -44,7 +51,7 @@ test('Worker returns language-only feedback without changing locked task marks',
   globalThis.fetch=async()=>new Response(JSON.stringify({choices:[{message:{tool_calls:[{function:{arguments:JSON.stringify({languageScore:18,grammar:'句子结构基本正确',vocabulary:'咖啡词汇需更准确',naturalness:'语气自然',advice:['练习 cà phê sữa đá']})}}]}}]}),{status:200,headers:{'Content-Type':'application/json'}});
   try{
     const assessment={product:'incorrect',quantity:'correct',sugar:'correct',service:'correct',payment:'correct'};
-    const response=await worker.fetch(new Request('https://worker.example/report',{method:'POST',headers:{Origin:'https://nineoclock-huang.github.io','Content-Type':'application/json'},body:JSON.stringify({messages:[{role:'user',vi:'Cho tôi cà phê đen đá'}],target:{product:'milk-iced',quantity:1,sugar:'less',service:'takeaway'},assessment})}),{DEEPSEEK_API_KEY:'test-secret'});
+    const response=await worker.fetch(new Request('https://worker.example/report',{method:'POST',headers:{Origin:'https://nineoclock-huang.github.io','Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({sessionId:'mobile-session-123456',messages:[{role:'user',vi:'Cho tôi cà phê đen đá'}],target:{product:'milk-iced',quantity:1,sugar:'less',service:'takeaway'},assessment})}),{DEEPSEEK_API_KEY:'test-secret'});
     assert.equal(response.status,200);
     const report=await response.json();
     assert.equal(report.languageScore,18);

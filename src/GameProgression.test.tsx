@@ -8,6 +8,7 @@ vi.mock('./ai', () => ({
   isAiConfigured: true,
   requestAiReply: vi.fn(async () => null),
   requestAiFeedback: vi.fn(),
+  trustedAiAttempts: vi.fn(() => ({})),
 }));
 
 beforeEach(() => {
@@ -41,7 +42,7 @@ it('等待 AI 评分完成后才展示总分，并解锁 Dận 限时挑战', as
   expect(screen.getByText(/每个问题只有 12 秒/)).toBeInTheDocument();
 });
 
-it('Dận 每道题只触发一次超时并锁定一个目标', async () => {
+it('Dận 超时只扣一次分，不自动判错或推进目标', async () => {
   localStorage.setItem('hanoi-one-day-rush-unlocked', 'yes');
   render(<App />);
   fireEvent.click(screen.getByRole('button', { name: /开始体验/ }));
@@ -52,7 +53,10 @@ it('Dận 每道题只触发一次超时并锁定一个目标', async () => {
   vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'setTimeout', 'clearTimeout', 'performance'] });
   fireEvent.click(screen.getByRole('button', { name: /我准备好了/ }));
   act(() => vi.advanceTimersByTime(12_020));
-  expect(screen.getByLabelText('冰牛奶咖啡：错误')).toBeInTheDocument();
+  expect(screen.getByLabelText('冰牛奶咖啡：未作答')).toBeInTheDocument();
   expect(screen.getByLabelText('一杯：未作答')).toBeInTheDocument();
+  expect(screen.getAllByText(/Hết giờ rồi/)).toHaveLength(1);
+  expect(screen.getByLabelText('本题剩余时间')).toHaveTextContent('已扣 5 分 · 仍可回答');
+  act(() => vi.advanceTimersByTime(20_000));
   expect(screen.getAllByText(/Hết giờ rồi/)).toHaveLength(1);
 });

@@ -3,7 +3,7 @@ import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import App from './App';
 
 vi.mock('./cityRenderer',()=>({mountCity:()=>{throw new Error('WebGL unavailable')}}));
-vi.mock('./ai',()=>({isAiConfigured:true,requestAiReply:vi.fn(async()=>({vi:'Dạ, tôi đã nghe.',zh:'好的，我听到了。',attempts:{}})),requestAiFeedback:vi.fn(async()=>null)}));
+vi.mock('./ai',()=>({isAiConfigured:true,requestAiReply:vi.fn(async()=>({vi:'Dạ, tôi đã nghe.',zh:'好的，我听到了。',attempts:{}})),requestAiFeedback:vi.fn(async()=>null),trustedAiAttempts:vi.fn(()=>({}))}));
 beforeEach(()=>{vi.spyOn(Math,'random').mockReturnValue(0);vi.stubGlobal('scrollTo',vi.fn());Element.prototype.scrollTo=vi.fn();Element.prototype.scrollIntoView=vi.fn()});
 afterEach(()=>{cleanup();localStorage.clear();vi.restoreAllMocks();vi.unstubAllGlobals()});
 

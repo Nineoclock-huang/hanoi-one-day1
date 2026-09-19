@@ -1,12 +1,32 @@
-import type {Assessment,Criteria,OrderTarget} from './engine';
+import {normalizeVietnamese,type Assessment,type Criteria,type OrderTarget} from './engine';
 
 export type DialogueMessage={role:'clerk'|'user';vi:string;zh?:string};
 export type ClerkMood='neutral'|'listening'|'happy'|'clarify';
-export type AiReply={vi:string;zh:string;attempts?:Partial<Assessment>;mood?:ClerkMood};
+export type AiReply={vi:string;zh:string;attempts?:Partial<Assessment>;evidence?:Partial<Record<keyof Assessment,string>>;confidence?:Partial<Record<keyof Assessment,number>>;mood?:ClerkMood};
 export type AiFeedback={languageScore:number;grammar:string;vocabulary:string;naturalness:string;advice:string[]};
 const defaultEndpoint=import.meta.env.MODE==='test'?'':'https://hanoi-one-day-ai.hanoi-one-day.workers.dev';
 const endpoint=((import.meta.env.VITE_AI_ENDPOINT as string|undefined)||defaultEndpoint).replace(/\/$/,'');
 export const isAiConfigured=Boolean(endpoint);
+const fieldSignals:Record<keyof Assessment,string[]>={
+  product:['bac xiu','trung','den','sua'],
+  quantity:['mot','hai','1','2','ly','coc'],
+  sugar:['duong','ngot'],
+  service:['mang','dem','tai cho','tai day','uong o'],
+  payment:['thanh toan','tra','tien','the','chuyen khoan','quet'],
+};
+
+export function trustedAiAttempts(reply:AiReply|null,input:string):Partial<Assessment>{
+  if(!reply?.attempts||!reply.evidence||!reply.confidence)return{};
+  const message=normalizeVietnamese(input),result:Partial<Assessment>={};
+  for(const key of ['product','quantity','sugar','service','payment'] as const){
+    const status=reply.attempts[key],rawEvidence=reply.evidence[key],confidence=reply.confidence[key];
+    if((status!=='correct'&&status!=='incorrect')||typeof rawEvidence!=='string'||typeof confidence!=='number'||confidence<.8)continue;
+    const evidence=normalizeVietnamese(rawEvidence);
+    if(!evidence||!message.includes(evidence)||!fieldSignals[key].some(signal=>evidence.includes(signal)))continue;
+    result[key]=status;
+  }
+  return result;
+}
 
 export async function requestAiReply(input:{messages:DialogueMessage[];target:OrderTarget;criteria:Criteria;assessment:Assessment;beforeAssessment:Assessment;suggestedReply:AiReply;task:string;clerk?:'Lạc'|'Dận';difficulty?:'standard'|'rush'}):Promise<AiReply|null>{
   if(!endpoint)return null;
@@ -28,8 +48,10 @@ export async function requestAiReply(input:{messages:DialogueMessage[];target:Or
     const data=await response.json() as Partial<AiReply>;
     if(typeof data.vi!=='string'||typeof data.zh!=='string'||!data.vi.trim()||!data.zh.trim())return null;
     const attempts=Object.fromEntries((['product','quantity','sugar','service','payment']as const).filter(key=>data.attempts?.[key]==='correct'||data.attempts?.[key]==='incorrect').map(key=>[key,data.attempts?.[key]])) as Partial<Assessment>;
+    const evidence=Object.fromEntries((['product','quantity','sugar','service','payment']as const).filter(key=>typeof data.evidence?.[key]==='string').map(key=>[key,String(data.evidence?.[key]).slice(0,120)])) as Partial<Record<keyof Assessment,string>>;
+    const confidence=Object.fromEntries((['product','quantity','sugar','service','payment']as const).filter(key=>typeof data.confidence?.[key]==='number'&&Number.isFinite(data.confidence[key])).map(key=>[key,Math.max(0,Math.min(1,Number(data.confidence?.[key])))])) as Partial<Record<keyof Assessment,number>>;
     const mood=(['neutral','listening','happy','clarify'] as const).includes(data.mood as ClerkMood)?data.mood as ClerkMood:undefined;
-    return{vi:data.vi.trim().slice(0,320),zh:data.zh.trim().slice(0,240),attempts,mood};
+    return{vi:data.vi.trim().slice(0,320),zh:data.zh.trim().slice(0,240),attempts,evidence,confidence,mood};
   }catch{return null}finally{window.clearTimeout(timeout)}
 }
 

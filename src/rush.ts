@@ -1,5 +1,3 @@
-import type { Assessment } from './engine';
-
 export const RUSH_QUESTION_LIMIT_MS = 12_000;
 export const RUSH_TIMEOUT_PENALTY = 5;
 
@@ -8,18 +6,6 @@ export function formatCountdown(milliseconds: number) {
   const seconds = Math.floor(safe / 1000);
   const millis = safe % 1000;
   return `00:${String(seconds).padStart(2, '0')}.${String(millis).padStart(3, '0')}`;
-}
-
-export function nextPendingCriterion(assessment: Assessment): keyof Assessment | null {
-  return (Object.keys(assessment) as (keyof Assessment)[]).find(key => assessment[key] === 'pending') ?? null;
-}
-
-export function applyQuestionTimeout(assessment: Assessment) {
-  const key = nextPendingCriterion(assessment);
-  return {
-    key,
-    assessment: key ? { ...assessment, [key]: 'incorrect' as const } : assessment,
-  };
 }
 
 export function rushPenalty(timeouts: number) {

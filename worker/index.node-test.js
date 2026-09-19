@@ -11,17 +11,18 @@ test('Worker returns a validated bilingual reply without exposing the key',async
   const originalFetch=globalThis.fetch;
   let authorization='';
   let upstreamBody;
-  globalThis.fetch=async(_url,options)=>{authorization=options.headers.Authorization;upstreamBody=JSON.parse(options.body);return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({vi:'Bạn muốn loại cà phê nào?',zh:'你想要哪一种咖啡？',mood:'clarify',attempts:{quantity:'correct'}})}}]}),{status:200,headers:{'Content-Type':'application/json'}})};
+  globalThis.fetch=async(_url,options)=>{authorization=options.headers.Authorization;upstreamBody=JSON.parse(options.body);return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({vi:'Bạn muốn loại cà phê nào?',zh:'你想要哪一种咖啡？',mood:'clarify',attempts:{quantity:'correct'},evidence:{quantity:'một ly'},confidence:{quantity:.96}})}}]}),{status:200,headers:{'Content-Type':'application/json'}})};
   try{
     const response=await worker.fetch(new Request('https://worker.example/chat',{method:'POST',headers:{Origin:'https://nineoclock-huang.github.io','Content-Type':'application/json'},body:JSON.stringify({messages:[{role:'user',vi:'Cà phê'}],task:'一杯少糖冰牛奶咖啡，带走',target:{product:'milk-iced',quantity:1,sugar:'less',service:'takeaway'},criteria:{product:true,quantity:true,sugar:true,service:true,payment:false},beforeAssessment:{},assessment:{product:'correct',quantity:'correct',sugar:'correct',service:'correct',payment:'not_attempted'},suggestedReply:{vi:'Bạn muốn thanh toán bằng cách nào?',zh:'你想如何付款？'}})}),{DEEPSEEK_API_KEY:'test-secret'});
     assert.equal(response.status,200);
-    assert.deepEqual(await response.json(),{vi:'Bạn muốn loại cà phê nào?',zh:'你想要哪一种咖啡？',mood:'clarify',attempts:{product:'not_attempted',quantity:'correct',sugar:'not_attempted',service:'not_attempted',payment:'not_attempted'}});
+    assert.deepEqual(await response.json(),{vi:'Bạn muốn loại cà phê nào?',zh:'你想要哪一种咖啡？',mood:'clarify',attempts:{product:'not_attempted',quantity:'correct',sugar:'not_attempted',service:'not_attempted',payment:'not_attempted'},evidence:{product:'',quantity:'một ly',sugar:'',service:'',payment:''},confidence:{product:0,quantity:.96,sugar:0,service:0,payment:0}});
     assert.equal(authorization,'Bearer test-secret');
     assert.deepEqual(upstreamBody.thinking,{type:'disabled'});
     assert.deepEqual(upstreamBody.response_format,{type:'json_object'});
     assert.equal(upstreamBody.max_tokens,140);
     assert.match(upstreamBody.messages[0].content,/next required field is payment/);
     assert.match(upstreamBody.messages[0].content,/Never ask about a field already correct/);
+    assert.match(upstreamBody.messages[0].content,/shortest exact supporting substring/);
     assert.match(upstreamBody.messages.at(-1).content,/only next topic.*payment/);
   }finally{globalThis.fetch=originalFetch}
 });

@@ -4,14 +4,17 @@ import { asset, loadCity, warmCafe } from './loading';
 import{AiFeedback,ClerkMood,isAiConfigured,requestAiFeedback,requestAiReply}from'./ai';
 import{ArrowLeft,ArrowRight,Check,Coffee,Lightbulb,RotateCcw,X}from"lucide-react";
 import{analyzeAttempts,Assessment,clerkReply,correctCriteria,Criteria,criterionLabels,currentOrderTarget,emptyAssessment,finalScore,hints,mergeAssessment,normalizeVietnamese,orderSummary,randomizeOrderTarget,recommendedExpression,resolvedCount,resolvedCriteria}from"./engine";
+import{keyboardIsOpen}from'./mobileViewport';
 type Screen="home"|"map"|"mission"|"chat"|"report";type ChatMessage={role:"clerk"|"user";vi:string;zh?:string};type SavedReport={score:number;objectiveScore:number;completedAt:string;expressions:string[];criteria:Criteria;assessment:Assessment;hints:number;feedback:AiFeedback|null;feedbackUnavailable?:boolean};
 const STORAGE_KEY="hanoi-one-day-reports",steps:Screen[]=["home","map","mission","chat","report"],labels:Record<Screen,string>={home:"首页",map:"城市地图",mission:"任务介绍",chat:"对话场景",report:"任务报告"};
 const clerkSprite=(mood:ClerkMood,size:448|768)=>asset(`clerk${mood==='neutral'?'':`-${mood}`}-${size}.webp`);
 function loadReports():SavedReport[]{try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]")}catch{return[]}}
 export default function App(){
   const[screen,setScreen]=useState<Screen>('home'),[messages,setMessages]=useState<ChatMessage[]>([{role:'clerk',vi:'Xin chào! Bạn muốn uống gì?',zh:'你好！你想喝什么？'}]),[assessment,setAssessment]=useState<Assessment>(emptyAssessment),[hintsUsed,setHintsUsed]=useState(0),[report,setReport]=useState<SavedReport|null>(null),[reports,setReports]=useState<SavedReport[]>(loadReports),step=steps.indexOf(screen);
+  const viewportBaseline=useRef(Math.max(window.innerHeight,window.visualViewport?.height||0));
   const resetMission=()=>{setMessages([{role:'clerk',vi:'Xin chào! Bạn muốn uống gì?',zh:'你好！你想喝什么？'}]);setAssessment({...emptyAssessment});setHintsUsed(0);setReport(null);setScreen('chat')};
   useEffect(()=>{const timer=window.setTimeout(()=>{if(screen==='home')void loadCity().catch(()=>{});if(screen==='map'||screen==='mission')warmCafe();},screen==='home'?1200:300);return()=>window.clearTimeout(timer)},[screen]);
+  useEffect(()=>{const viewport=window.visualViewport;const update=()=>{const height=Math.round(viewport?.height||window.innerHeight);if(screen!=='chat'||height>viewportBaseline.current)viewportBaseline.current=Math.max(viewportBaseline.current,height);document.documentElement.style.setProperty('--app-height',`${height}px`);document.body.classList.toggle('chat-viewport',screen==='chat');document.body.classList.toggle('keyboard-open',screen==='chat'&&keyboardIsOpen(viewportBaseline.current,height));if(screen==='chat'&&window.scrollY)window.scrollTo(0,0)};update();viewport?.addEventListener('resize',update);viewport?.addEventListener('scroll',update);window.addEventListener('resize',update);return()=>{viewport?.removeEventListener('resize',update);viewport?.removeEventListener('scroll',update);window.removeEventListener('resize',update);document.body.classList.remove('chat-viewport','keyboard-open')}},[screen]);
   const back=()=>setScreen(steps[Math.max(step-1,0)]);
   const finish=async(finalAssessment:Assessment,finalMessages:ChatMessage[])=>{
     const base=Math.max(0,Object.values(finalAssessment).filter(value=>value==='correct').length*15-hintsUsed*2);

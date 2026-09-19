@@ -22,7 +22,7 @@ it('等待 AI 时在聊天区显示思考气泡，并自动滚动到新回复',a
   expect(screen.getByRole('complementary',{name:'咖啡店店员 Lạc'})).toHaveClass('mood-listening');
   await waitFor(()=>expect(screen.getByText(/Dạ, tôi đã nghe/)).toBeInTheDocument());
   expect(screen.getByRole('complementary',{name:'咖啡店店员 Lạc'})).toHaveClass('mood-clarify');
-  expect(document.querySelector('.mood-fx')).toHaveTextContent('再想一想');
+  expect(document.querySelector('.mood-fx > span')).not.toBeInTheDocument();
   expect(screen.getByRole('img',{name:'二次元咖啡店店员 Lạc'})).toHaveAttribute('src',expect.stringContaining('clerk-clarify-768.webp'));
   expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
   expect((Element.prototype.scrollIntoView as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(before);

@@ -18,9 +18,10 @@ export function warmImage(name: string, url = asset(name)) {
   image.onerror = () => warmed.delete(name);
   image.src = url;
 }
-export function warmCafe() {
+export function warmCafe(includeRush=false) {
   const mobile = window.innerWidth <= 760;
   const size=mobile?448:768;
   for(const mood of ['', '-listening', '-happy', '-clarify'])warmImage(`clerk${mood}-${size}.webp`);
+  if(includeRush)for(const mood of ['', '-listening', '-happy', '-impatient'])warmImage(`dan${mood}-${size}.webp`);
   warmImage('cafe-' + (mobile ? 'mobile' : 'desktop'), mobile ? cafeMobile : cafeDesktop);
 }

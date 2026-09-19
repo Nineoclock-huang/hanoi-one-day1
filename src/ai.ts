@@ -8,7 +8,7 @@ const defaultEndpoint=import.meta.env.MODE==='test'?'':'https://hanoi-one-day-ai
 const endpoint=((import.meta.env.VITE_AI_ENDPOINT as string|undefined)||defaultEndpoint).replace(/\/$/,'');
 export const isAiConfigured=Boolean(endpoint);
 
-export async function requestAiReply(input:{messages:DialogueMessage[];target:OrderTarget;criteria:Criteria;assessment:Assessment;beforeAssessment:Assessment;suggestedReply:AiReply;task:string}):Promise<AiReply|null>{
+export async function requestAiReply(input:{messages:DialogueMessage[];target:OrderTarget;criteria:Criteria;assessment:Assessment;beforeAssessment:Assessment;suggestedReply:AiReply;task:string;clerk?:'Lạc'|'Dận';difficulty?:'standard'|'rush'}):Promise<AiReply|null>{
   if(!endpoint)return null;
   const controller=new AbortController();
   const timeout=window.setTimeout(()=>controller.abort(),9000);
@@ -21,6 +21,8 @@ export async function requestAiReply(input:{messages:DialogueMessage[];target:Or
       beforeAssessment:input.beforeAssessment,
       suggestedReply:input.suggestedReply,
       task:input.task,
+      clerk:input.clerk||'Lạc',
+      difficulty:input.difficulty||'standard',
     })});
     if(!response.ok)return null;
     const data=await response.json() as Partial<AiReply>;
@@ -31,9 +33,9 @@ export async function requestAiReply(input:{messages:DialogueMessage[];target:Or
   }catch{return null}finally{window.clearTimeout(timeout)}
 }
 
-export async function requestAiFeedback(input:{messages:DialogueMessage[];target:OrderTarget;assessment:Assessment}):Promise<AiFeedback|null>{
+export async function requestAiFeedback(input:{messages:DialogueMessage[];target:OrderTarget;assessment:Assessment;difficulty?:'standard'|'rush';responseTimes?:number[];timeouts?:number}):Promise<AiFeedback|null>{
   if(!endpoint)return null;
-  const controller=new AbortController(),timeout=window.setTimeout(()=>controller.abort(),35000);
+  const controller=new AbortController(),timeout=window.setTimeout(()=>controller.abort(),18000);
   try{
     const response=await fetch(`${endpoint}/report`,{method:'POST',headers:{'Content-Type':'application/json'},signal:controller.signal,body:JSON.stringify({...input,messages:input.messages.slice(-20)})});
     if(!response.ok)return null;

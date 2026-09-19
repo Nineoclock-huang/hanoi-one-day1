@@ -1,10 +1,11 @@
 import * as T from 'three';
 import { renderQuality } from './renderQuality';
 import { CITY_PLACES, CITY_VIEWS, cityPlace, type CityViewId } from './cityData';
+import { cameraTransitionDuration, easeInOutCubic } from './cameraMotion';
 
 type Point = [number, number];
 type Marker = { id: string; element: HTMLElement };
-export type CityHandle = { dispose: () => void; setView: (id: CityViewId) => void };
+export type CityHandle = { dispose: () => void; setView: (id: CityViewId) => void; focusPlace: (id: string) => void };
 type Options = { markers: Marker[]; onSelect: (id: string) => void; initialView: CityViewId };
 
 export function mountCity(host: HTMLElement, pin: HTMLElement, onEnter: () => void, onLost: () => void, options: Options): CityHandle {
@@ -123,7 +124,7 @@ export function mountCity(host: HTMLElement, pin: HTMLElement, onEnter: () => vo
   const trafficRoutes=[roads[3],roads[9]].map(route=>new T.CatmullRomCurve3(route.map(([x,z])=>new T.Vector3(x,0,z))));
   for(let i=0;i<8;i++){const car=new T.Group(),body=new T.Mesh(carGeometry,standard(['#faf3dc','#4b7d88','#c6755c','#8fa69d'][i%4])),cabin=new T.Mesh(carGeometry,standard('#466c75'));body.scale.set(.45,.28,.9);body.position.y=.46;cabin.scale.set(.36,.18,.45);cabin.position.y=.68;car.add(body,cabin);scene.add(car);traffic.push(car);}
   let view=CITY_VIEWS.find(v=>v.id===options.initialView)!;
-  let disposed=false,frame=0,labelsDirty=true;
+  let disposed=false,frame=0,transitionFrame=0,labelsDirty=true;
   const markerList=[{id:'cafe',element:pin},...options.markers].sort((a,b)=>cityPlace(b.id).priority-cityPlace(a.id).priority);
   const projectLabels=()=>{
     const w=host.clientWidth,h=host.clientHeight,occupied:{x:number;y:number;w:number;h:number}[]=[];
@@ -132,9 +133,14 @@ export function mountCity(host: HTMLElement, pin: HTMLElement, onEnter: () => vo
   };
   const renderScene=()=>{if(disposed)return;camera.updateMatrixWorld();if(labelsDirty){projectLabels();labelsDirty=false;}renderer.render(scene,camera);};
   const scheduleRender=()=>{cancelAnimationFrame(frame);frame=requestAnimationFrame(renderScene);};
-  const resize=()=>{if(disposed)return;const w=host.clientWidth,h=host.clientHeight;if(!w||!h)return;const aspect=w/h,halfHeight=Math.max(view.span*.66,view.span*.7/aspect);camera.left=-halfHeight*aspect;camera.right=halfHeight*aspect;camera.top=halfHeight;camera.bottom=-halfHeight;camera.updateProjectionMatrix();renderer.setSize(w,h);labelsDirty=true;scheduleRender();};
-  const setView=(id:CityViewId)=>{view=CITY_VIEWS.find(v=>v.id===id)!;const target=new T.Vector3(view.x,0,view.z);camera.position.set(view.x+52,72,view.z+78);camera.zoom=1;camera.lookAt(target);resize();};
-  setView(options.initialView);const observer=new ResizeObserver(resize);observer.observe(host);
+  const boundsFor=(next:typeof view)=>{const w=host.clientWidth,h=host.clientHeight,aspect=w/h,halfHeight=Math.max(next.span*.66,next.span*.7/aspect);return{left:-halfHeight*aspect,right:halfHeight*aspect,top:halfHeight,bottom:-halfHeight}};
+  let cameraTarget=new T.Vector3();
+  const applyBounds=(bounds:ReturnType<typeof boundsFor>)=>{camera.left=bounds.left;camera.right=bounds.right;camera.top=bounds.top;camera.bottom=bounds.bottom;camera.updateProjectionMatrix();};
+  const resize=()=>{if(disposed)return;const w=host.clientWidth,h=host.clientHeight;if(!w||!h)return;cancelAnimationFrame(transitionFrame);delete host.dataset.cameraMoving;applyBounds(boundsFor(view));renderer.setSize(w,h);labelsDirty=true;scheduleRender();};
+  const moveTo=(next:typeof view,animate=true)=>{if(!host.clientWidth||!host.clientHeight)return;cancelAnimationFrame(transitionFrame);const fromPosition=camera.position.clone(),fromTarget=cameraTarget.clone(),fromBounds={left:camera.left,right:camera.right,top:camera.top,bottom:camera.bottom},toPosition=new T.Vector3(next.x+52,72,next.z+78),toTarget=new T.Vector3(next.x,0,next.z),toBounds=boundsFor(next),duration=cameraTransitionDuration(window.matchMedia('(prefers-reduced-motion: reduce)').matches);view=next;camera.zoom=1;if(!animate||!duration){camera.position.copy(toPosition);cameraTarget.copy(toTarget);camera.lookAt(cameraTarget);applyBounds(toBounds);labelsDirty=true;scheduleRender();return;}host.dataset.cameraMoving='true';const started=performance.now();const tick=(time:number)=>{if(disposed)return;const raw=Math.min(1,(time-started)/duration),progress=easeInOutCubic(raw);camera.position.lerpVectors(fromPosition,toPosition,progress);cameraTarget.lerpVectors(fromTarget,toTarget,progress);camera.lookAt(cameraTarget);camera.left=T.MathUtils.lerp(fromBounds.left,toBounds.left,progress);camera.right=T.MathUtils.lerp(fromBounds.right,toBounds.right,progress);camera.top=T.MathUtils.lerp(fromBounds.top,toBounds.top,progress);camera.bottom=T.MathUtils.lerp(fromBounds.bottom,toBounds.bottom,progress);camera.updateProjectionMatrix();labelsDirty=true;renderScene();if(raw<1)transitionFrame=requestAnimationFrame(tick);else delete host.dataset.cameraMoving;};transitionFrame=requestAnimationFrame(tick);};
+  const setView=(id:CityViewId,animate=true)=>moveTo(CITY_VIEWS.find(v=>v.id===id)!,animate);
+  const focusPlace=(id:string)=>{const place=cityPlace(id),district=CITY_VIEWS.find(item=>item.id===place.district)!;moveTo({...district,x:place.x,z:place.z,span:id==='west-lake'||id==='red-river'?18:14});};
+  setView(options.initialView,false);const observer=new ResizeObserver(resize);observer.observe(host);
   const labelObserver=new ResizeObserver(()=>{labelsDirty=true;scheduleRender();});markerList.forEach(({element})=>labelObserver.observe(element));
   const pointer=new T.Vector2(),raycaster=new T.Raycaster();
   const up=(e:PointerEvent)=>{
@@ -147,5 +153,5 @@ export function mountCity(host: HTMLElement, pin: HTMLElement, onEnter: () => vo
   renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;
   traffic.forEach((car,i)=>{const route=trafficRoutes[i<4?0:1],position=route.getPointAt((i*.23)%1),direction=route.getTangentAt((i*.23)%1);car.position.copy(position);car.rotation.y=Math.atan2(direction.x,direction.z);});scheduleRender();
   const lost=(event:Event)=>{event.preventDefault();cancelAnimationFrame(frame);onLost();};renderer.domElement.addEventListener('webglcontextlost',lost);
-  return {setView,dispose:()=>{disposed=true;cancelAnimationFrame(frame);observer.disconnect();labelObserver.disconnect();renderer.domElement.removeEventListener('pointerup',up);renderer.domElement.removeEventListener('webglcontextlost',lost);Object.values(primitives).forEach(g=>g.dispose());geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());renderer.dispose();renderer.domElement.remove();}};
+  return {setView,focusPlace,dispose:()=>{disposed=true;cancelAnimationFrame(frame);cancelAnimationFrame(transitionFrame);observer.disconnect();labelObserver.disconnect();renderer.domElement.removeEventListener('pointerup',up);renderer.domElement.removeEventListener('webglcontextlost',lost);Object.values(primitives).forEach(g=>g.dispose());geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());renderer.dispose();renderer.domElement.remove();}};
 }

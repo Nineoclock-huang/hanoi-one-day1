@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import CityScene from './CityScene';
 import { CITY_PLACES, CITY_VIEWS, cityPlace, clampCityZoom } from './cityData';
 
-const renderer=vi.hoisted(()=>({dispose:vi.fn(),setView:vi.fn()}));
+const renderer=vi.hoisted(()=>({dispose:vi.fn(),setView:vi.fn(),focusPlace:vi.fn()}));
 vi.mock('./cityRenderer',()=>({mountCity:()=>renderer}));
 beforeEach(()=>localStorage.setItem('hanoi-one-day-guide-seen','yes'));
 afterEach(()=>{cleanup();localStorage.clear();vi.clearAllMocks()});
@@ -24,7 +24,7 @@ it('可查找所有地标；规划场景不会误进入咖啡任务',async()=>{
   fireEvent.change(screen.getByRole('combobox'),{target:{value:'literature'}});
   const card=screen.getByRole('complementary',{name:'地点介绍'});
   expect(within(card).getByText('Văn Miếu – Quốc Tử Giám')).toBeInTheDocument();
-  expect(renderer.setView).toHaveBeenLastCalledWith('ba-dinh');
+  expect(renderer.focusPlace).toHaveBeenLastCalledWith('literature');
   fireEvent.change(screen.getByRole('combobox'),{target:{value:'market'}});
   expect(within(card).getByText('未来场景 · 即将开放')).toBeInTheDocument();
   expect(within(card).queryByRole('button',{name:/进入咖啡店/})).toBeNull();expect(onEnter).not.toHaveBeenCalled();

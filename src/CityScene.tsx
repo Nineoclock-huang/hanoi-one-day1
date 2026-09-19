@@ -25,7 +25,7 @@ export default function CityScene({ onEnter }: { onEnter: () => void }) {
   const initialView=useRef(view);
   const [selected,setSelected]=useState<string|null>(null);
   const changeView=(id:CityViewId)=>{initialView.current=id;setView(id);setSelected(null);controls.current?.setView(id)};
-  const selectPlace=(id:string)=>{const place=cityPlace(id);if(!place)return;initialView.current=place.district;setView(place.district);controls.current?.setView(place.district);setSelected(id)};
+  const selectPlace=(id:string)=>{const place=cityPlace(id);if(!place)return;initialView.current=place.district;setView(place.district);controls.current?.focusPlace(id);setSelected(id)};
   const [guideStep,setGuideStep]=useState(()=>localStorage.getItem(GUIDE_KEY)==='yes'?-1:0);
   const finishGuide=()=>{localStorage.setItem(GUIDE_KEY,'yes');setGuideStep(-1)};
   const nextGuide=()=>{if(guideStep>=guideSteps.length-1)finishGuide();else setGuideStep(guideStep+1)};
@@ -53,7 +53,7 @@ export default function CityScene({ onEnter }: { onEnter: () => void }) {
       <div ref={host} className="city-canvas" role="img" aria-label="固定鸟瞰视角的河内立体城市，包含西湖、还剑湖、巴亭、老城区、红河与龙边街区"/>
       <div className="city-map-caption"><span>HANOI / CITY ATLAS</span><strong>{CITY_VIEWS.find(item=>item.id===view)?.label}</strong><small>参照真实方位 · 比例与街道经游戏化简化</small></div>
       <button ref={pin} hidden={status !== 'ready'} className="city-pin" onClick={onEnter} aria-label="街角咖啡店，进入任务"><Coffee size={18}/><span>CÀ PHÊ <small>点击进入</small></span><ArrowUpRight size={15}/></button>
-      {CITY_PLACES.filter(place=>place.id!=='cafe').map(place=><button key={place.id} ref={element=>{if(element)markers.current.set(place.id,element);else markers.current.delete(place.id)}} hidden={status!=='ready'} className={`city-place-marker ${place.kind}`} aria-label={`了解${place.name}`} onClick={()=>setSelected(place.id)}>{place.kind==='landmark'?<Landmark size={12}/>:<LockKeyhole size={11}/>}<span>{place.name}</span></button>)}
+      {CITY_PLACES.filter(place=>place.id!=='cafe').map(place=><button key={place.id} ref={element=>{if(element)markers.current.set(place.id,element);else markers.current.delete(place.id)}} hidden={status!=='ready'} className={`city-place-marker ${place.kind}`} aria-label={`了解${place.name}`} onClick={()=>selectPlace(place.id)}>{place.kind==='landmark'?<Landmark size={12}/>:<LockKeyhole size={11}/>}<span>{place.name}</span></button>)}
       {status !== 'ready' && <div className="city-fallback" role="status"><Coffee size={36}/><p>{status === 'loading' ? '正在铺开河内的街道…' : '当前设备无法显示 3D 城市。'}</p>{<button onClick={onEnter}>进入咖啡店 <ArrowUpRight size={17}/></button>}</div>}
       <div className="city-compass"><span>北 N</span><i>↑</i></div>
       <div className="city-map-tools">

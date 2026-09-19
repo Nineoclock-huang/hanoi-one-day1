@@ -1,4 +1,5 @@
 import * as T from 'three';
+import { renderQuality } from './renderQuality';
 import { MapControls } from 'three/examples/jsm/controls/MapControls.js';
 import { CITY_PLACES, CITY_VIEWS, cityPlace, clampCityZoom, type CityViewId } from './cityData';
 
@@ -8,9 +9,10 @@ export type CityHandle = { dispose: () => void; setView: (id: CityViewId) => voi
 type Options = { markers: Marker[]; onSelect: (id: string) => void; initialView: CityViewId };
 
 export function mountCity(host: HTMLElement, pin: HTMLElement, onEnter: () => void, onLost: () => void, options: Options): CityHandle {
+  const quality = renderQuality(window.innerWidth, window.devicePixelRatio);
   const renderer = new T.WebGLRenderer({ antialias: true, alpha: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-  renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap;
+  renderer.setPixelRatio(quality.pixelRatio);
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFShadowMap;
   renderer.outputColorSpace = T.SRGBColorSpace; renderer.setClearColor('#dce9e8');
   renderer.toneMapping = T.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
   host.appendChild(renderer.domElement);
@@ -21,7 +23,7 @@ export function mountCity(host: HTMLElement, pin: HTMLElement, onEnter: () => vo
   controls.screenSpacePanning = false; controls.minZoom = .75; controls.maxZoom = 2.2; controls.zoomSpeed = .6;
   scene.add(new T.HemisphereLight(0xf5fbff, 0x788777, 1.9));
   const sun = new T.DirectionalLight(0xfff2d5, 2.4);
-  sun.position.set(-38, 75, 30); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+  sun.position.set(-38, 75, 30); sun.castShadow = true; sun.shadow.mapSize.set(quality.shadowSize, quality.shadowSize);
   Object.assign(sun.shadow.camera, { left: -65, right: 65, top: 65, bottom: -65, far: 180 });
   sun.shadow.bias = -.0008; sun.shadow.normalBias = .12; scene.add(sun);
   const materials: T.Material[] = [], geometries: T.BufferGeometry[] = [];
@@ -150,7 +152,7 @@ export function mountCity(host: HTMLElement, pin: HTMLElement, onEnter: () => vo
   const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');
   // Only traffic moves; the city and sun are static, so reuse their shadow map.
   renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;
-  const draw=(time:number)=>{if(disposed)return;frame=requestAnimationFrame(draw);if(document.hidden||time-last<33)return;last=time;controls.update();camera.updateMatrixWorld();if(labelsDirty){projectLabels();labelsDirty=false;}traffic.forEach((car,i)=>{const route=trafficRoutes[i<4?0:1],t=((reduced.matches?0:time*.000025)+i*.23)%1,position=route.getPointAt(t),direction=route.getTangentAt(t);car.position.copy(position);car.rotation.y=Math.atan2(direction.x,direction.z);});renderer.render(scene,camera);};frame=requestAnimationFrame(draw);
+  const draw=(time:number)=>{if(disposed)return;frame=requestAnimationFrame(draw);if(document.hidden||time-last<quality.frameInterval)return;last=time;controls.update();camera.updateMatrixWorld();if(labelsDirty){projectLabels();labelsDirty=false;}traffic.forEach((car,i)=>{const route=trafficRoutes[i<4?0:1],t=((reduced.matches?0:time*.000025)+i*.23)%1,position=route.getPointAt(t),direction=route.getTangentAt(t);car.position.copy(position);car.rotation.y=Math.atan2(direction.x,direction.z);});renderer.render(scene,camera);};frame=requestAnimationFrame(draw);
   const lost=(event:Event)=>{event.preventDefault();cancelAnimationFrame(frame);onLost();};renderer.domElement.addEventListener('webglcontextlost',lost);
   return {setView,zoom:(factor:number)=>{camera.zoom=clampCityZoom(camera.zoom*factor);camera.updateProjectionMatrix();labelsDirty=true;},dispose:()=>{disposed=true;cancelAnimationFrame(frame);observer.disconnect();labelObserver.disconnect();controls.removeEventListener('change',changed);controls.dispose();renderer.domElement.removeEventListener('pointerdown',down);renderer.domElement.removeEventListener('pointermove',move);renderer.domElement.removeEventListener('pointerup',up);renderer.domElement.removeEventListener('pointercancel',cancel);renderer.domElement.removeEventListener('webglcontextlost',lost);Object.values(primitives).forEach(g=>g.dispose());geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());renderer.dispose();renderer.domElement.remove();}};
 }

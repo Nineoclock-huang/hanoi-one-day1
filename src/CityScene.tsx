@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Coffee, ArrowUpRight, Sun, Plus, Minus, LocateFixed, Landmark, LockKeyhole, X } from 'lucide-react';
 import { CITY_PLACES, CITY_VIEWS, CITY_MAP_SOURCES, cityPlace, type CityViewId } from './cityData';
 import type { CityHandle } from './cityRenderer';
+import { asset, loadCity } from './loading';
 import './city.css';
 
 const GUIDE_KEY='hanoi-one-day-guide-seen';
@@ -31,7 +32,7 @@ export default function CityScene({ onEnter }: { onEnter: () => void }) {
   useEffect(() => {
     let cancelled = false;
     let handle: CityHandle | undefined;
-    import('./cityRenderer').then(({ mountCity }) => {
+    loadCity().then(({ mountCity }) => {
       if (cancelled || !host.current || !pin.current) return;
       try {
         handle = mountCity(host.current, pin.current, () => enter.current(), () => setStatus('fallback'), {
@@ -53,7 +54,7 @@ export default function CityScene({ onEnter }: { onEnter: () => void }) {
       <div className="city-map-caption"><span>HANOI / CITY ATLAS</span><strong>{CITY_VIEWS.find(item=>item.id===view)?.label}</strong><small>参照真实方位 · 比例与街道经游戏化简化</small></div>
       <button ref={pin} hidden={status !== 'ready'} className="city-pin" onClick={onEnter} aria-label="街角咖啡店，进入任务"><Coffee size={18}/><span>CÀ PHÊ <small>点击进入</small></span><ArrowUpRight size={15}/></button>
       {CITY_PLACES.filter(place=>place.id!=='cafe').map(place=><button key={place.id} ref={element=>{if(element)markers.current.set(place.id,element);else markers.current.delete(place.id)}} hidden={status!=='ready'} className={`city-place-marker ${place.kind}`} aria-label={`了解${place.name}`} onClick={()=>setSelected(place.id)}>{place.kind==='landmark'?<Landmark size={12}/>:<LockKeyhole size={11}/>}<span>{place.name}</span></button>)}
-      {status !== 'ready' && <div className="city-fallback" role="status"><Coffee size={36}/><p>{status === 'loading' ? '正在铺开河内的街道…' : '当前设备无法显示 3D 城市。'}</p>{status === 'fallback' && <button onClick={onEnter}>进入咖啡店 <ArrowUpRight size={17}/></button>}</div>}
+      {status !== 'ready' && <div className="city-fallback" role="status"><Coffee size={36}/><p>{status === 'loading' ? '正在铺开河内的街道…' : '当前设备无法显示 3D 城市。'}</p>{<button onClick={onEnter}>进入咖啡店 <ArrowUpRight size={17}/></button>}</div>}
       <div className="city-compass"><span>北 N</span><i>↑</i></div>
       <div className="city-map-tools">
         <select aria-label="查找景点或场景" value={selected||''} onChange={event=>selectPlace(event.target.value)}><option value="">寻找一个地点…</option>{CITY_PLACES.map(place=><option key={place.id} value={place.id}>{place.name}{place.status==='planned'?' · 即将开放':''}</option>)}</select>
@@ -63,7 +64,7 @@ export default function CityScene({ onEnter }: { onEnter: () => void }) {
       {selected&&guideStep<0&&<aside className="city-place-card" aria-label="地点介绍"><button className="city-place-close" aria-label="关闭地点介绍" onClick={()=>setSelected(null)}><X size={16}/></button><small>{cityPlace(selected).status==='planned'?'未来场景 · 即将开放':cityPlace(selected).status==='open'?'已开放 · 越南语任务':'河内地标'}</small><h3>{cityPlace(selected).name}</h3><em>{cityPlace(selected).vietnamese}</em><p>{cityPlace(selected).description}</p>{selected==='cafe'?<button className="city-enter" onClick={onEnter}>进入咖啡店 <ArrowUpRight size={15}/></button>:<span className="city-place-note">{cityPlace(selected).status==='planned'?'任务尚未开放，敬请期待':'点击地图上的咖啡店开始语言练习'}</span>}</aside>}
       {guideStep>=0&&<div className="city-tutorial" role="dialog" aria-label="新手教程" onClick={nextGuide} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();nextGuide()}}} tabIndex={0}>
         <div className="guide-card" key={guideStep}><span className="guide-kicker">城市引导 · {guideStep+1}/{guideSteps.length}</span><h3>{guideSteps[guideStep].title}</h3><p>{guideSteps[guideStep].body}</p><span className="guide-next">{guideStep===guideSteps.length-1?'开始探索':'点击屏幕继续'} <ArrowUpRight size={15}/></span></div>
-        <img className="guide-character" src={`${import.meta.env.BASE_URL}hanoi-guide.png`} alt="拿着地图的新手引导员"/>
+        <picture style={{display:"contents"}}><source media="(max-width: 760px)" srcSet={asset("guide-320.webp")}/><img className="guide-character" src={asset("guide-640.webp")} decoding="async" alt="拿着地图的新手引导员"/></picture>
         <button className="guide-skip" onClick={event=>{event.stopPropagation();finishGuide()}}>跳过引导</button>
       </div>}
     </div>

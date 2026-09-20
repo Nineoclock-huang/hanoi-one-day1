@@ -1,5 +1,7 @@
 import {expect,it} from 'vitest';
-import {clearOfBuildings,walkingRoute} from './cityWalking';
+import {clearOfBuildings,walkingRoute,walkingRouteAsync} from './cityWalking';
+it('nearby destinations stop searching without scanning the whole city',()=>{let checks=0;const route=walkingRoute({x:0,z:0},{x:.65,z:0},()=>{checks++;return true});expect(route.length).toBe(2);expect(checks).toBeLessThan(20);});
+it('unreachable destination yields to UI timers and can be cancelled',async()=>{let cancelled=false,painted=false;setTimeout(()=>{painted=true;cancelled=true},0);const route=await walkingRouteAsync({x:0,z:0},{x:100,z:100},()=>true,()=>cancelled);expect(painted).toBe(true);expect(route).toEqual([]);});
 it('routes around a building with clearance rather than jumping through it',()=>{
  const obstacles=[{x:0,z:0,w:3,d:3}],canWalk=(p:{x:number;z:number})=>Math.abs(p.x)<5&&Math.abs(p.z)<5&&clearOfBuildings(p,obstacles);
  const route=walkingRoute({x:-3.25,z:0},{x:3.25,z:0},canWalk);

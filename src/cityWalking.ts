@@ -6,7 +6,7 @@ export function clearOfBuildings(p: WalkPoint, obstacles: WalkObstacle[]) {
   return !obstacles.some(o => Math.abs(p.x-o.x)<o.w/2+PAWN_RADIUS && Math.abs(p.z-o.z)<o.d/2+PAWN_RADIUS);
 }
 // Four-way grid paths cannot cut diagonally across the corner of a building.
-export function walkingRoute(start: WalkPoint, destination: WalkPoint, canWalk: (p: WalkPoint)=>boolean): WalkPoint[] {
+function* searchRoute(start: WalkPoint, destination: WalkPoint, canWalk: (p: WalkPoint)=>boolean): Generator<void,WalkPoint[]> {
   const key=(x:number,z:number)=>`${x},${z}`, cells=new Map<string,{x:number;z:number;parent:string|null}>();
   const sx=Math.round(start.x/WALK_STEP),sz=Math.round(start.z/WALK_STEP),queue=[key(sx,sz)];
   cells.set(queue[0],{x:sx,z:sz,parent:null});
@@ -14,6 +14,9 @@ export function walkingRoute(start: WalkPoint, destination: WalkPoint, canWalk: 
   for(let i=0;i<queue.length;i++){
     const id=queue[i],cell=cells.get(id)!,p={x:cell.x*WALK_STEP,z:cell.z*WALK_STEP},d=Math.hypot(p.x-destination.x,p.z-destination.z);
     if(d<distance){distance=d;best=id;}
+    if(d<=WALK_STEP*.72)break;
+    // Give the browser time to paint and handle input, even for unreachable destinations.
+    if(i>0&&i%64===0)yield;
     for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]]){
       const x=cell.x+dx,z=cell.z+dz,next=key(x,z);
       if(Math.abs(x)>70||Math.abs(z)>70||cells.has(next))continue;
@@ -25,5 +28,11 @@ export function walkingRoute(start: WalkPoint, destination: WalkPoint, canWalk: 
   const route:WalkPoint[]=[];let id:string|null=best;
   while(id){const cell:{x:number;z:number;parent:string|null}=cells.get(id)!;route.push({x:cell.x*WALK_STEP,z:cell.z*WALK_STEP});id=cell.parent;}
   return route.reverse();
+}
+export function walkingRoute(start:WalkPoint,destination:WalkPoint,canWalk:(p:WalkPoint)=>boolean){const search=searchRoute(start,destination,canWalk);let step=search.next();while(!step.done)step=search.next();return step.value;}
+export async function walkingRouteAsync(start:WalkPoint,destination:WalkPoint,canWalk:(p:WalkPoint)=>boolean,cancelled=()=>false){
+ const search=searchRoute(start,destination,canWalk);
+ while(!cancelled()){const step=search.next();if(step.done)return step.value;await new Promise<void>(resolve=>setTimeout(resolve,0));}
+ return [];
 }
 export function insidePolygon(p:WalkPoint,polygon:[number,number][]){let inside=false;for(let i=0,j=polygon.length-1;i<polygon.length;j=i++){const [xi,zi]=polygon[i],[xj,zj]=polygon[j];if((zi>p.z)!==(zj>p.z)&&p.x<(xj-xi)*(p.z-zi)/(zj-zi)+xi)inside=!inside;}return inside;}

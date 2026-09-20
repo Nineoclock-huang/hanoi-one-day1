@@ -30,7 +30,8 @@ export default function CityScene({ onEnter, onMarket, rushUnlocked=false, cafeC
     if(busy.current)return;
     if(!controls.current?.travelTo){setSelected(id);controls.current?.focusPlace(id);if(enterTask){if(id==='cafe')onEnter();else if(id==='market')onMarket?.();}return;}
     busy.current=true;setSelected(null);setTravel(id);
-    const arrived=await controls.current.travelTo(id);
+    let arrived=false;
+    try{arrived=await controls.current.travelTo(id);}catch{busy.current=false;}
     if(!alive.current)return;
     setTravel(null);
     if(!arrived){busy.current=false;setSelected(id);return;}

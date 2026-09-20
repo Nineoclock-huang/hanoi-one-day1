@@ -1,5 +1,5 @@
 import * as T from 'three';
-import { clearOfBuildings, insidePolygon, walkingRoute, WALK_STEP, type WalkObstacle, type WalkPoint } from './cityWalking';
+import { clearOfBuildings, insidePolygon, walkingRouteAsync, WALK_STEP, type WalkObstacle, type WalkPoint } from './cityWalking';
 import { renderQuality } from './renderQuality';
 import { CITY_PLACES, CITY_VIEWS, cityPlace, type CityViewId } from './cityData';
 import { cameraTransitionDuration, easeInOutCubic } from './cameraMotion';
@@ -166,21 +166,25 @@ export function mountCity(host: HTMLElement, pin: HTMLElement, onEnter: () => vo
   let pawnPosition=lastPawnPosition&&canWalk(lastPawnPosition)?lastPawnPosition:candidates[Math.floor(Math.random()*candidates.length)]||{x:6.5,z:2.6};
   const groundHeight=(p:WalkPoint)=>bridgeWalk(p)?1.02:.25;
   pawn.position.set(pawnPosition.x,groundHeight(pawnPosition),pawnPosition.z);
-  const travelTo=(id:string):Promise<boolean>=>{
-    if(finishWalk||disposed)return Promise.resolve(false);
+  let planning=false;
+  const travelTo=async(id:string):Promise<boolean>=>{
+    if(planning||finishWalk||disposed)return Promise.resolve(false);
     const place=cityPlace(id);if(!place)return Promise.resolve(false);
     const destination=place.kind==='scene'?{x:place.x,z:place.z+2.8}:place;
-    const route=walkingRoute(pawnPosition,destination,canWalk);
+    planning=true;
+    let route:WalkPoint[];
+    try{route=await walkingRouteAsync(pawnPosition,destination,canWalk,()=>disposed);}finally{planning=false;}
+    if(disposed)return false;
     if(!route.length)return Promise.resolve(false);
     // Keep both traveller and destination visible throughout the journey.
     const minX=Math.min(...route.map(p=>p.x)),maxX=Math.max(...route.map(p=>p.x)),minZ=Math.min(...route.map(p=>p.z)),maxZ=Math.max(...route.map(p=>p.z));
     moveTo({...view,x:(minX+maxX)/2,z:(minZ+maxZ)/2,span:Math.max(12,(maxX-minX)*.8,(maxZ-minZ)*.8)});
     const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const stepTime=reduced?30:105,started=performance.now();host.dataset.walking='true';
+    const stepTime=reduced?Math.min(30,500/Math.max(1,route.length-1)):Math.min(105,4500/Math.max(1,route.length-1)),started=performance.now();host.dataset.walking='true';
     return new Promise(resolve=>{finishWalk=resolve;
       const tick=(now:number)=>{
         if(disposed)return;
-        const elapsed=(now-started)/stepTime,index=Math.min(route.length-1,Math.floor(elapsed)),a=route[index],b=route[Math.min(index+1,route.length-1)],t=elapsed-Math.floor(elapsed);
+        const elapsed=Math.max(0,(now-started)/stepTime),index=Math.min(route.length-1,Math.floor(elapsed)),a=route[index],b=route[Math.min(index+1,route.length-1)],t=elapsed-Math.floor(elapsed);
         pawn.position.set(T.MathUtils.lerp(a.x,b.x,t),groundHeight(a)+(reduced?0:Math.sin(t*Math.PI)*.48),T.MathUtils.lerp(a.z,b.z,t));
         if(index<route.length-1)pawn.rotation.y=Math.atan2(b.x-a.x,b.z-a.z);
         renderScene();

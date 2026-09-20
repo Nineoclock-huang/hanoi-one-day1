@@ -35,10 +35,17 @@ export default{
     if(request.method==='GET'&&url.pathname==='/health')return json({ok:true,model:'deepseek-flash'},200,originAllowed(origin)?origin:'https://nineoclock-huang.github.io');
     if(!originAllowed(origin))return json({error:'Origin not allowed'},403,'https://nineoclock-huang.github.io');
     if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors(origin)});
-    if(request.method!=='POST'||(url.pathname!=='/chat'&&url.pathname!=='/report'))return json({error:'Not found'},404,origin);
+    if(request.method!=='POST'||!['/chat','/report','/market'].includes(url.pathname))return json({error:'Not found'},404,origin);
     if(!env.DEEPSEEK_API_KEY)return json({error:'AI is not configured'},503,origin);
     let body;try{body=await request.json()}catch{return json({error:'Invalid JSON'},400,origin)}
     if(rateLimited(request,body.sessionId))return json({error:'Too many requests'},429,origin);
+    if(url.pathname==='/market'){
+      const stalls={fruit:['Cô Lan','friendly and lively','two kilograms of mangoes'],gifts:['An','patient, good at gift recommendations','one box of mung bean cakes'],cloth:['Minh','shrewd but polite','one scarf']},stall=stalls[body.stall];
+      if(!stall||!Array.isArray(body.messages)||body.messages.length>6||!Number.isInteger(body.price)||body.price<0||body.price>200000||!validText(body.suggestedReply?.vi,320)||!validText(body.suggestedReply?.zh,240))return json({error:'Invalid market request'},400,origin);
+      const history=body.messages.filter(m=>(m.role==='user'||m.role==='clerk')&&validText(m.vi,320)).map(m=>({role:m.role==='user'?'user':'assistant',content:m.vi}));
+      const prompt=`You are ${stall[0]}, a ${stall[1]} vendor at Dong Xuan market. Sell ${stall[2]}. Speak simple Vietnamese with a Chinese translation. Acknowledge the customer's actual question and explain or recommend naturally. Do not mention AI, scoring or game rules. This is a prototype with one fixed product bundle per stall; do not pretend to sell other items or change quantities. Locked whole-bundle price: ${body.price} VND. Transaction event: ${body.event}. Preserve this transaction outcome exactly: ${body.suggestedReply.vi}. You cannot change prices, take payments or claim a purchase has happened unless the event is purchased. The customer confirms checkout separately. Never invent discounts, inventory emergencies or product certifications. Return compact JSON {"vi":"one or two short sentences","zh":"Chinese translation"}.`;
+      try{const upstream=await fetch('https://api.deepseek.com/chat/completions',{method:'POST',headers:{Authorization:`Bearer ${env.DEEPSEEK_API_KEY}`,'Content-Type':'application/json'},signal:request.signal,body:JSON.stringify({model:'deepseek-flash',messages:[{role:'system',content:prompt},...history],thinking:{type:'disabled'},response_format:{type:'json_object'},max_tokens:230,temperature:.4})});if(!upstream.ok)throw new Error();const result=await upstream.json(),reply=parseJsonObject(result.choices?.[0]?.message?.content);if(!validText(reply?.vi,320)||!validText(reply?.zh,240))throw new Error();return json({vi:reply.vi,zh:reply.zh},200,origin);}catch{return json({error:'Market dialogue unavailable'},502,origin);}
+    }
     if(url.pathname==='/report'){
       if(!Array.isArray(body.messages)||body.messages.length>20||!body.target||!body.assessment||criteriaKeys.some(key=>!['correct','incorrect'].includes(body.assessment[key])))return json({error:'Invalid report request'},400,origin);
       const expressions=body.messages.filter(message=>message.role==='user'&&validText(message.vi,320)).slice(-12).map(message=>message.vi);

@@ -2,6 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import worker from './src/index.js';
 
+test('market vendor receives locked price and returns bilingual dialogue',async()=>{
+  const original=globalThis.fetch;let prompt='';
+  globalThis.fetch=async(_url,options)=>{prompt=JSON.parse(options.body).messages[0].content;return Response.json({choices:[{message:{content:JSON.stringify({vi:'Được, 95 nghìn nhé.',zh:'可以，九万五。'})}}]});};
+  try{const response=await worker.fetch(new Request('https://worker.example/market',{method:'POST',headers:{Origin:'http://127.0.0.1:5173'},body:JSON.stringify({stall:'fruit',messages:[{role:'user',vi:'Bot con 95 nghin duoc khong?'}],price:95000,event:'bargain',suggestedReply:{vi:'Được, 95 nghìn nhé.',zh:'可以，九万五。'}})}),{DEEPSEEK_API_KEY:'test'});assert.equal(response.status,200);assert.match(prompt,/Cô Lan/);assert.match(prompt,/95000 VND/);assert.match(prompt,/cannot change prices/);assert.equal((await response.json()).zh,'可以，九万五。');}finally{globalThis.fetch=original;}
+});
+
 test('Worker rejects unknown websites before contacting DeepSeek',async()=>{
   const response=await worker.fetch(new Request('https://worker.example/chat',{method:'POST',headers:{Origin:'https://evil.example'}}),{DEEPSEEK_API_KEY:'secret'});
   assert.equal(response.status,403);

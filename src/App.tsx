@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { ArrowLeft, ArrowRight, Check, Coffee, Lightbulb, RotateCcw, Sparkles, Timer, X } from 'lucide-react';
 import CityScene from './CityScene';
+import MarketScene from './MarketScene';
 import { asset, loadCity, warmCafe } from './loading';
 import { type AiFeedback, type ClerkMood, fallbackLanguageFeedback, isAiConfigured, requestAiFeedback, requestAiReply, trustedAiAttempts, warmAi } from './ai';
 import { analyzeAttempts, analyzeContextualConfirmation, type Assessment, clerkReply, correctCriteria, type Criteria, criterionLabels, currentOrderTarget, emptyAssessment, finalScore, hints, mergeAssessment, normalizeVietnamese, orderSummary, randomizeOrderTarget, recommendedExpression, resolvedCount, resolvedCriteria } from './engine';
@@ -73,7 +74,7 @@ export default function App() {
     {screen === 'home' && <Home onStart={() => setScreen('map')} latest={reports[0]} />}
     {screen === 'map' && <CityScene onEnter={enterCafe} onMarket={()=>setScreen('market')} rushUnlocked={rushUnlocked&&!rushCompleted} cafeChanged={cafeChanged} />}
     {screen === 'cafe-choice' && <div className="cafe-choice"><p className="eyebrow">CÀ PHÊ · 再次相见</p><h2>Lạc 回到了柜台。</h2><p>咖啡馆的故事已完成。今天想和谁练习？</p><div className="cafe-choice-options"><button onClick={()=>chooseCafe('standard')}><img src={sprite('Lạc','neutral',448)} alt="Lạc"/><span>主线 · 日常点单<strong>Lạc</strong><small>慢慢说，练习一张新订单</small></span></button><button onClick={()=>chooseCafe('rush')}><img src={sprite('Dận','neutral',448)} alt="Dận"/><span>支线 · 忙碌时段<strong>Dận</strong><small>再次挑战限时点单</small></span></button></div><button className="secondary-button" onClick={()=>setScreen('map')}>返回街区，探索同春市场</button></div>}
-    {screen === 'market' && <div className="market-preview"><p className="eyebrow">下一站 · CHỢ ĐỒNG XUÂN</p><h2>同春市场</h2><div className="market-stalls" aria-hidden="true"><span>TRÁI CÂY 🍊</span><span>ĐỒ VẢI 🧵</span><span>ĐẶC SẢN 🧺</span></div><p>穿过热闹的摊位，下一段河内故事将在这里展开。</p><p>购物、问价与议价任务正在筹备中。</p><button className="primary-button" onClick={()=>setScreen('map')}>回到街区继续探索</button></div>}
+    {screen === 'market' && <MarketScene />}
     {screen === 'mission' && <Mission onStart={resetMission} difficulty={difficulty} />}
     {screen === 'chat' && <Chat messages={messages} setMessages={setMessages} assessment={assessment} setAssessment={setAssessment} hintsUsed={hintsUsed} setHintsUsed={setHintsUsed} onComplete={finish} difficulty={difficulty} />}
     {screen === 'grading' && <Grading difficulty={difficulty} />}

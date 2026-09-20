@@ -120,3 +120,8 @@ export async function requestAiFeedback(input:{messages:DialogueMessage[];target
     return{languageScore:Math.max(0,Math.min(25,Math.round(languageScore))),grammar:data.grammar.trim().slice(0,240),vocabulary:data.vocabulary.trim().slice(0,240),naturalness:data.naturalness.trim().slice(0,240),advice:data.advice.filter((item):item is string=>typeof item==='string'&&Boolean(item.trim())).slice(0,3).map(item=>item.trim().slice(0,180))};
   }catch{return null}
 }
+
+export async function requestMarketReply(input:{stall:string;messages:DialogueMessage[];price:number;event:string;suggestedReply:DialogueMessage}):Promise<{vi:string;zh:string}|null>{
+  if(!endpoint)return null;
+  try{const response=await post('/market',input,[6500]);if(!response?.ok)return null;const data=await response.json();return typeof data.vi==='string'&&data.vi.trim()&&typeof data.zh==='string'&&data.zh.trim()?{vi:data.vi.slice(0,320),zh:data.zh.slice(0,240)}:null;}catch{return null;}
+}

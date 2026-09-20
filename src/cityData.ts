@@ -34,7 +34,7 @@ export const CITY_PLACES: CityPlace[] = [
   { id: 'opera', name: '河内大剧院', vietnamese: 'Nhà hát Lớn Hà Nội', x: 16, z: 23, height: 3.5, kind: 'landmark', status: 'visit', district: 'old-quarter', description: '位于还剑湖东南侧的剧院，拥有古典立面与柱廊，周边街区保留法式建筑氛围。', priority: 85 },
   { id: 'long-bien', name: '龙边桥', vietnamese: 'Cầu Long Biên', x: 23, z: -6, height: 3, kind: 'landmark', status: 'visit', district: 'long-bien', description: '跨越红河、连接老城与东岸的历史钢桁架桥。沙盘以重复的钢梁与铁路桥面呈现。', priority: 92 },
   { id: 'red-river', name: '红河', vietnamese: 'Sông Hồng', x: 30, z: 18, height: .4, kind: 'landmark', status: 'visit', district: 'long-bien', description: '红河从河内城区东侧流过，连接两岸的桥梁与沿河绿地构成沙盘的东部景观。', priority: 74 },
-  { id: 'market', name: '同春市场', vietnamese: 'Chợ Đồng Xuân', x: 7, z: 0, height: 3.3, kind: 'scene', status: 'planned', district: 'old-quarter', description: '老城区北部的市场地标。预留购物、问价和议价任务，场景即将开放。', priority: 80 },
+  { id: 'market', name: '同春市场', vietnamese: 'Chợ Đồng Xuân', x: 7, z: 0, height: 3.3, kind: 'scene', status: 'open', district: 'old-quarter', description: '走进独立市场沙盘，带着预算问价、议价，装满你的购物袋。采购体验版已开放。', priority: 80 },
   { id: 'hotel', name: '老街酒店', vietnamese: 'Khách sạn', x: 15, z: 6, height: 4, kind: 'scene', status: 'planned', district: 'old-quarter', description: '虚拟教学地点，预留入住、核对预订和提出住宿需求的对话任务。', priority: 35 },
   { id: 'restaurant', name: '河内餐馆', vietnamese: 'Nhà hàng', x: -1, z: 14, height: 2.8, kind: 'scene', status: 'planned', district: 'old-quarter', description: '虚拟教学地点，预留点餐、饮食偏好和结账任务。', priority: 34 },
   { id: 'bus', name: '公交站', vietnamese: 'Trạm xe buýt', x: 12, z: -3, height: 1.8, kind: 'scene', status: 'planned', district: 'old-quarter', description: '虚拟教学地点，预留问路、询问车次和购买车票的任务。', priority: 33 },

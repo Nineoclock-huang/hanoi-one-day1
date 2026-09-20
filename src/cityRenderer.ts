@@ -20,7 +20,7 @@ export function mountCity(host: HTMLElement, pin: HTMLElement, onEnter: () => vo
   host.appendChild(renderer.domElement);
   const scene = new T.Scene();
   const camera = new T.OrthographicCamera(-50, 50, 35, -35, .1, 260);
-  renderer.domElement.style.touchAction='manipulation';
+  renderer.domElement.style.touchAction='none';
   scene.add(new T.HemisphereLight(0xf5fbff, 0x788777, 1.9));
   const sun = new T.DirectionalLight(0xfff2d5, 2.4);
   sun.position.set(-38, 75, 30); sun.castShadow = true; sun.shadow.mapSize.set(quality.shadowSize, quality.shadowSize);
@@ -134,11 +134,11 @@ export function mountCity(host: HTMLElement, pin: HTMLElement, onEnter: () => vo
   const projectLabels=()=>{
     const w=host.clientWidth,h=host.clientHeight,occupied:{x:number;y:number;w:number;h:number}[]=[];
     host.parentElement?.querySelectorAll<HTMLElement>('.city-map-caption,.city-compass,.city-map-tools').forEach(el=>occupied.push({x:el.offsetLeft,y:el.offsetTop,w:el.offsetWidth,h:el.offsetHeight}));
-    markerList.forEach(({id,element})=>{const p=cityPlace(id),v=new T.Vector3(p.x,p.height,p.z).project(camera),offset=id==='market'?(w<=760?{x:35,y:-46}:{x:96,y:-56}):{x:0,y:0},x=(v.x*.5+.5)*w+offset.x,y=(-v.y*.5+.5)*h+offset.y,ew=element.offsetWidth||100,eh=element.offsetHeight||28,b={x:x-ew/2,y:y-eh,w:ew,h:eh};const outside=b.x<8||b.x+b.w>w-8||b.y<8||y>h-48,collision=occupied.some(a=>b.x<a.x+a.w+8&&b.x+b.w+8>a.x&&b.y<a.y+a.h+7&&b.y+b.h+7>a.y);element.style.visibility=outside||collision?'hidden':'visible';element.style.left=`${x}px`;element.style.top=`${y}px`;if(!outside&&!collision)occupied.push(b);});
+    markerList.forEach(({id,element})=>{const p=cityPlace(id),anchor=p.kind==='scene'?{x:p.x,z:p.z+2.8}:p,v=new T.Vector3(anchor.x,p.height,anchor.z).project(camera),x=(v.x*.5+.5)*w,y=(-v.y*.5+.5)*h,ew=element.offsetWidth||100,eh=element.offsetHeight||28,b={x:id==='market'?x-ew*.15:x-ew/2,y:id==='market'?y+10:y-eh,w:ew,h:eh};const outside=b.x<8||b.x+b.w>w-8||b.y<8||b.y+b.h>h-8,collision=p.kind!=='scene'&&occupied.some(a=>b.x<a.x+a.w+5&&b.x+b.w+5>a.x&&b.y<a.y+a.h+5&&b.y+b.h+5>a.y);element.style.visibility=outside||collision?'hidden':'visible';element.style.left=`${x}px`;element.style.top=`${y}px`;if(!outside&&!collision)occupied.push(b);});
   };
   const renderScene=()=>{if(disposed)return;camera.updateMatrixWorld();if(labelsDirty){projectLabels();labelsDirty=false;}const pawnScreen=pawn.position.clone().add(new T.Vector3(0,1.8,0)).project(camera);pawnLabel.style.left=`${(pawnScreen.x*.5+.5)*host.clientWidth}px`;pawnLabel.style.top=`${(-pawnScreen.y*.5+.5)*host.clientHeight}px`;pawnLabel.style.visibility=Math.abs(pawnScreen.x)>1||Math.abs(pawnScreen.y)>1?'hidden':'visible';renderer.render(scene,camera);};
   const scheduleRender=()=>{cancelAnimationFrame(frame);frame=requestAnimationFrame(renderScene);};
-  const boundsFor=(next:typeof view)=>{const w=host.clientWidth,h=host.clientHeight,aspect=w/h,halfHeight=Math.max(next.span*.66,next.span*.7/aspect);return{left:-halfHeight*aspect,right:halfHeight*aspect,top:halfHeight,bottom:-halfHeight}};
+  const boundsFor=(next:typeof view)=>{const w=host.clientWidth,h=host.clientHeight,aspect=w/h,halfHeight=Math.max(next.span*.58,next.span*.62/aspect);return{left:-halfHeight*aspect,right:halfHeight*aspect,top:halfHeight,bottom:-halfHeight}};
   let cameraTarget=new T.Vector3();
   const applyBounds=(bounds:ReturnType<typeof boundsFor>)=>{camera.left=bounds.left;camera.right=bounds.right;camera.top=bounds.top;camera.bottom=bounds.bottom;camera.updateProjectionMatrix();};
   const resize=()=>{if(disposed)return;const w=host.clientWidth,h=host.clientHeight;if(!w||!h)return;cancelAnimationFrame(transitionFrame);delete host.dataset.cameraMoving;applyBounds(boundsFor(view));renderer.setSize(w,h);labelsDirty=true;scheduleRender();};
@@ -197,15 +197,20 @@ export function mountCity(host: HTMLElement, pin: HTMLElement, onEnter: () => vo
   setView(options.initialView,false);const observer=new ResizeObserver(resize);observer.observe(host);
   const labelObserver=new ResizeObserver(()=>{labelsDirty=true;scheduleRender();});markerList.forEach(({element})=>labelObserver.observe(element));
   const pointer=new T.Vector2(),raycaster=new T.Raycaster();
+  let drag:{id:number;x:number;y:number;position:T.Vector3;target:T.Vector3;moved:boolean}|null=null;
+  const down=(e:PointerEvent)=>{if(e.button!==0||host.dataset.cameraMoving||host.dataset.walking)return;drag={id:e.pointerId,x:e.clientX,y:e.clientY,position:camera.position.clone(),target:cameraTarget.clone(),moved:false};renderer.domElement.setPointerCapture?.(e.pointerId);};
+  const move=(e:PointerEvent)=>{if(!drag||drag.id!==e.pointerId)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.hypot(dx,dy)>5)drag.moved=true;if(!drag.moved)return;e.preventDefault();const scale=(camera.right-camera.left)/Math.max(1,host.clientWidth),right=new T.Vector3().setFromMatrixColumn(camera.matrixWorld,0).setY(0).normalize(),upAxis=new T.Vector3().setFromMatrixColumn(camera.matrixWorld,1).setY(0).normalize(),desired=drag.target.clone().addScaledVector(right,-dx*scale).addScaledVector(upAxis,dy*scale);desired.x=T.MathUtils.clamp(desired.x,-34,38);desired.z=T.MathUtils.clamp(desired.z,-32,27);const delta=desired.clone().sub(drag.target);cameraTarget.copy(desired);camera.position.copy(drag.position).add(delta);camera.lookAt(cameraTarget);labelsDirty=true;renderScene();};
   const up=(e:PointerEvent)=>{
+    const wasDrag=!!drag?.moved;if(drag?.id===e.pointerId){view={...view,x:cameraTarget.x,z:cameraTarget.z};drag=null;renderer.domElement.releasePointerCapture?.(e.pointerId);}if(wasDrag)return;
     const r=renderer.domElement.getBoundingClientRect();pointer.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);raycaster.setFromCamera(pointer,camera);
     const hits=CITY_PLACES.flatMap(p=>{const bounds=new T.Box3(new T.Vector3(p.x-1.4,.2,p.z-1.4),new T.Vector3(p.x+1.4,p.height+.3,p.z+1.4)),hit=raycaster.ray.intersectBox(bounds,new T.Vector3());return hit?[{id:p.id,distance:hit.distanceTo(camera.position)}]:[];}).sort((a,b)=>a.distance-b.distance);
     if(hits[0]?.id==='cafe')onEnter();else if(hits[0])options.onSelect(hits[0].id);
   };
-  renderer.domElement.addEventListener('pointerup',up);
+  const cancel=(e:PointerEvent)=>{if(drag?.id===e.pointerId)drag=null;};
+  renderer.domElement.addEventListener('pointerdown',down);renderer.domElement.addEventListener('pointermove',move);renderer.domElement.addEventListener('pointerup',up);renderer.domElement.addEventListener('pointercancel',cancel);
   // The atlas is a fixed high-quality view. Render only when its size or district changes.
   renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;
   traffic.forEach((car,i)=>{const route=trafficRoutes[i<4?0:1],position=route.getPointAt((i*.23)%1),direction=route.getTangentAt((i*.23)%1);car.position.copy(position);car.rotation.y=Math.atan2(direction.x,direction.z);});scheduleRender();
   const lost=(event:Event)=>{event.preventDefault();cancelAnimationFrame(frame);cancelAnimationFrame(walkingFrame);finishWalk?.(false);finishWalk=null;onLost();};renderer.domElement.addEventListener('webglcontextlost',lost);
-  return {setView,focusPlace,travelTo,dispose:()=>{disposed=true;pawnLabel.remove();cancelAnimationFrame(walkingFrame);finishWalk?.(false);finishWalk=null;cancelAnimationFrame(frame);cancelAnimationFrame(transitionFrame);observer.disconnect();labelObserver.disconnect();renderer.domElement.removeEventListener('pointerup',up);renderer.domElement.removeEventListener('webglcontextlost',lost);Object.values(primitives).forEach(g=>g.dispose());geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());renderer.dispose();renderer.domElement.remove();}};
+  return {setView,focusPlace,travelTo,dispose:()=>{disposed=true;pawnLabel.remove();cancelAnimationFrame(walkingFrame);finishWalk?.(false);finishWalk=null;cancelAnimationFrame(frame);cancelAnimationFrame(transitionFrame);observer.disconnect();labelObserver.disconnect();renderer.domElement.removeEventListener('pointerdown',down);renderer.domElement.removeEventListener('pointermove',move);renderer.domElement.removeEventListener('pointerup',up);renderer.domElement.removeEventListener('pointercancel',cancel);renderer.domElement.removeEventListener('webglcontextlost',lost);Object.values(primitives).forEach(g=>g.dispose());geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());renderer.dispose();renderer.domElement.remove();}};
 }

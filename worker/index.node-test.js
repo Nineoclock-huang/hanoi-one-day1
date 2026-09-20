@@ -64,3 +64,18 @@ test('Worker returns compact language-only feedback without changing locked task
     assert.equal(upstreamBody.tools[0].function.name,'submit_language_report');
   }finally{globalThis.fetch=originalFetch}
 });
+
+test('Worker accepts numeric score strings and safely trims verbose AI reports',async()=>{
+  const originalFetch=globalThis.fetch;
+  const longText='这是一段具体但明显超过旧校验长度的学习分析。'.repeat(30);
+  globalThis.fetch=async()=>new Response(JSON.stringify({choices:[{message:{content:`\`\`\`json\n${JSON.stringify({languageScore:'16',grammar:longText,vocabulary:'词汇基本合适',naturalness:'表达可以理解',advice:'补全声调后再朗读一次。'})}\n\`\`\``}}]}),{status:200,headers:{'Content-Type':'application/json'}});
+  try{
+    const assessment={product:'correct',quantity:'correct',sugar:'incorrect',service:'correct',payment:'correct'};
+    const response=await worker.fetch(new Request('https://worker.example/report',{method:'POST',headers:{Origin:'https://nineoclock-huang.github.io','Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({sessionId:'mobile-session-654321',messages:[{role:'user',vi:'Cho tôi một ly cà phê sữa đá'}],target:{product:'milk-iced',quantity:1,sugar:'less',service:'takeaway'},assessment})}),{DEEPSEEK_API_KEY:'test-secret'});
+    assert.equal(response.status,200);
+    const report=await response.json();
+    assert.equal(report.languageScore,16);
+    assert.equal(report.grammar.length,240);
+    assert.deepEqual(report.advice,['补全声调后再朗读一次。']);
+  }finally{globalThis.fetch=originalFetch}
+});

@@ -5,6 +5,26 @@ function cors(origin){return{'Access-Control-Allow-Origin':origin,'Access-Contro
 function json(data,status,origin){return new Response(JSON.stringify(data),{status,headers:cors(origin)})}
 function rateLimited(request,sessionId){const ip=request.headers.get('CF-Connecting-IP')||'unknown',session=typeof sessionId==='string'&&/^[\w-]{16,80}$/.test(sessionId)?sessionId:'anonymous',key=`${ip}:${session}`,now=Date.now(),recent=(buckets.get(key)||[]).filter(time=>now-time<60000);recent.push(now);buckets.set(key,recent);return recent.length>30}
 function validText(value,max){return typeof value==='string'&&value.trim().length>0&&value.length<=max}
+function parseJsonObject(value){
+  if(typeof value!=='string'||!value.trim())return null;
+  const cleaned=value.trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');
+  try{return JSON.parse(cleaned)}catch{
+    const start=cleaned.indexOf('{'),end=cleaned.lastIndexOf('}');
+    if(start<0||end<=start)return null;
+    try{return JSON.parse(cleaned.slice(start,end+1))}catch{return null}
+  }
+}
+function normalizeReport(value){
+  const languageScore=Number(value?.languageScore);
+  if(!Number.isFinite(languageScore))return null;
+  const text=key=>typeof value?.[key]==='string'?value[key].trim().slice(0,240):'';
+  const grammar=text('grammar'),vocabulary=text('vocabulary'),naturalness=text('naturalness');
+  if(!grammar||!vocabulary||!naturalness)return null;
+  const rawAdvice=Array.isArray(value?.advice)?value.advice:typeof value?.advice==='string'?[value.advice]:[];
+  const advice=rawAdvice.filter(item=>typeof item==='string'&&item.trim()).slice(0,2).map(item=>item.trim().slice(0,180));
+  if(!advice.length)advice.push('请把商品、数量、糖量和服务方式组合成一个完整的越南语句子再练习一次。');
+  return{languageScore:Math.max(0,Math.min(25,Math.round(languageScore))),grammar,vocabulary,naturalness,advice};
+}
 const criteriaKeys=['product','quantity','sugar','service','payment'];
 function assessedAttempts(value){return Object.fromEntries(criteriaKeys.map(key=>[key,value?.[key]==='correct'||value?.[key]==='incorrect'?value[key]:'not_attempted']))}
 function assessedEvidence(value){return Object.fromEntries(criteriaKeys.map(key=>[key,typeof value?.[key]==='string'?value[key].trim().slice(0,120):'']))}
@@ -24,11 +44,16 @@ export default{
       const expressions=body.messages.filter(message=>message.role==='user'&&validText(message.vi,320)).slice(-12).map(message=>message.vi);
       if(!expressions.length)return json({error:'Empty report'},400,origin);
       const timing=body.difficulty==='rush'?` This was a timed challenge. The learner timed out ${Number(body.timeouts)||0} times; response times in milliseconds were ${JSON.stringify(Array.isArray(body.responseTimes)?body.responseTimes.slice(0,12):[])}. Mention one concrete speed/fluency suggestion, but do not alter the locked timeout penalties.`:'';
-      const prompt=`You are a supportive Vietnamese A1 language tutor reviewing a Hanoi cafe role-play. Give a very concise, concrete learning report in Simplified Chinese based ONLY on the learner's expressions. The task target is ${JSON.stringify(body.target)}. First-attempt task results are ${JSON.stringify(body.assessment)} and are LOCKED by the game; do not change, rescore, or dispute them.${timing} Assess only Vietnamese grammar, vocabulary appropriateness, and naturalness, from 0 to 25 total. Do not award high language points for unrelated or nonsensical text. Mention specific learner wording and give at most two actionable suggestions with corrected Vietnamese examples. Never invent errors. Return the result through submit_language_report.`;
+      const prompt=`You are a supportive Vietnamese A1 language tutor reviewing a Hanoi cafe role-play. Give a very concise, concrete learning report in Simplified Chinese based ONLY on the learner's expressions. The task target is ${JSON.stringify(body.target)}. First-attempt task results are ${JSON.stringify(body.assessment)} and are LOCKED by the game; do not change, rescore, or dispute them.${timing} Assess only Vietnamese grammar, vocabulary appropriateness, and naturalness, from 0 to 25 total. Do not award high language points for unrelated or nonsensical text. Mention specific learner wording and give at most two actionable suggestions with corrected Vietnamese examples. Never invent errors. Keep grammar, vocabulary, and naturalness under 120 Chinese characters each, and each advice item under 80 Chinese characters. Return the result through submit_language_report.`;
       const reportTool={type:'function',function:{name:'submit_language_report',description:'Return the language-only score and concise learning advice.',parameters:{type:'object',properties:{languageScore:{type:'integer'},grammar:{type:'string'},vocabulary:{type:'string'},naturalness:{type:'string'},advice:{type:'array',items:{type:'string'}}},required:['languageScore','grammar','vocabulary','naturalness','advice'],additionalProperties:false}}};
       let upstream;try{upstream=await fetch('https://api.deepseek.com/chat/completions',{method:'POST',headers:{Authorization:`Bearer ${env.DEEPSEEK_API_KEY}`,'Content-Type':'application/json'},signal:request.signal,body:JSON.stringify({model:'deepseek-flash',messages:[{role:'system',content:prompt},{role:'user',content:JSON.stringify(expressions)}],thinking:{type:'disabled'},tools:[reportTool],tool_choice:{type:'function',function:{name:'submit_language_report'}},max_tokens:500,temperature:.2,stream:false})})}catch{return json({error:'AI unavailable'},502,origin)}
       if(!upstream.ok)return json({error:'AI request failed'},502,origin);
-      try{const result=await upstream.json(),args=result.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments,feedback=JSON.parse(args);if(!Number.isFinite(feedback.languageScore)||!validText(feedback.grammar,240)||!validText(feedback.vocabulary,240)||!validText(feedback.naturalness,240)||!Array.isArray(feedback.advice))throw new Error();return json({languageScore:Math.max(0,Math.min(25,Math.round(feedback.languageScore))),grammar:feedback.grammar,vocabulary:feedback.vocabulary,naturalness:feedback.naturalness,advice:feedback.advice.filter(value=>validText(value,180)).slice(0,2)},200,origin)}catch{return json({error:'Invalid AI report'},502,origin)}
+      try{
+        const result=await upstream.json(),message=result.choices?.[0]?.message||{},args=message.tool_calls?.[0]?.function?.arguments;
+        const feedback=normalizeReport(parseJsonObject(args)||parseJsonObject(message.content));
+        if(!feedback)throw new Error();
+        return json(feedback,200,origin);
+      }catch{return json({error:'Invalid AI report'},502,origin)}
     }
     if(!Array.isArray(body.messages)||body.messages.length>10||!validText(body.task,160)||!body.target||!body.suggestedReply||!validText(body.suggestedReply.vi,320)||!validText(body.suggestedReply.zh,240))return json({error:'Invalid request'},400,origin);
     const history=body.messages.filter(message=>(message.role==='user'||message.role==='clerk')&&validText(message.vi,320)).slice(-4).map(message=>({role:message.role==='user'?'user':'assistant',content:message.vi}));

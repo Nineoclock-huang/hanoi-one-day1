@@ -8,6 +8,7 @@ vi.mock('./ai', () => ({
   isAiConfigured: true,
   requestAiReply: vi.fn(async () => null),
   requestAiFeedback: vi.fn(),
+  fallbackLanguageFeedback: vi.fn(() => ({ languageScore: 8, grammar: '基础语法建议', vocabulary: '基础词汇建议', naturalness: '基础自然度建议', advice: ['继续练习'] })),
   trustedAiAttempts: vi.fn(() => ({})),
 }));
 

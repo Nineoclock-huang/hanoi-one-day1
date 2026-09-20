@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { trustedAiAttempts, type AiReply } from './ai';
+import { fallbackLanguageFeedback, trustedAiAttempts, type AiReply } from './ai';
 
 const reply = (overrides: Partial<AiReply>): AiReply => ({ vi: 'Được.', zh: '好的。', ...overrides });
 
@@ -29,5 +29,15 @@ describe('AI 任务判断证据校验', () => {
       confidence: { product: .95 },
     }), 'Cà phê.');
     expect(result).toEqual({});
+  });
+});
+
+describe('AI 评分不可用时的基础报告',()=>{
+  it('始终返回总分所需的语言分和可执行建议',()=>{
+    const feedback=fallbackLanguageFeedback([{role:'user',vi:'Cho toi mot ly ca phe sua da it duong mang di'}],{product:'correct',quantity:'correct',sugar:'correct',service:'correct',payment:'pending'});
+    expect(feedback.languageScore).toBeGreaterThan(0);
+    expect(feedback.languageScore).toBeLessThanOrEqual(17);
+    expect(feedback.advice.length).toBeGreaterThan(0);
+    expect(feedback.naturalness).toMatch(/声调/);
   });
 });

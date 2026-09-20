@@ -30,6 +30,23 @@ export function trustedAiAttempts(reply:AiReply|null,input:string):Partial<Asses
   return result;
 }
 
+export function fallbackLanguageFeedback(messages:DialogueMessage[],assessment:Assessment):AiFeedback{
+  const expressions=messages.filter(message=>message.role==='user').map(message=>message.vi.trim()).filter(Boolean);
+  const normalized=normalizeVietnamese(expressions.join(' '));
+  const signals=['toi','cho','ca phe','ly','coc','duong','ngot','mang di','tai cho','thanh toan','tra tien'];
+  const signalCount=signals.filter(signal=>normalized.includes(signal)).length;
+  const resolvedCorrect=Object.values(assessment).filter(value=>value==='correct').length;
+  const languageScore=Math.max(2,Math.min(17,4+signalCount+resolvedCorrect));
+  const hasAccents=expressions.some(text=>normalizeVietnamese(text)!==text.toLowerCase().replace(/\s+/g,' ').trim());
+  return{
+    languageScore,
+    grammar:expressions.length?'能够用短句推进点单；建议把商品、数量和要求组合成一个完整句子。':'本次没有足够的越南语表达可供分析。',
+    vocabulary:signalCount>=4?'已经使用了多项咖啡店点单词汇，但仍要核对商品和服务方式是否准确。':'咖啡店核心词汇还不够完整，优先练习商品、数量、糖量与付款表达。',
+    naturalness:hasAccents?'表达基本可理解；加入礼貌词“cho tôi”和“cảm ơn”会更自然。':'系统能够理解无声调输入；正式书写时补全声调会更自然、更准确。',
+    advice:['练习把信息合并成一句：Cho tôi một ly cà phê sữa đá, ít đường, mang đi.','付款时可以说：Tôi thanh toán bằng tiền mặt.'],
+  };
+}
+
 function sessionId(){
   if(transientSessionId)return transientSessionId;
   try{const saved=localStorage.getItem(SESSION_KEY);if(saved&&/^[\w-]{16,80}$/.test(saved))return transientSessionId=saved}catch{}
@@ -95,10 +112,11 @@ export async function requestAiFeedback(input:{messages:DialogueMessage[];target
   if(!endpoint)return null;
   try{
     // 评分只请求一次，避免手机端一次失败后再额外等待 6 秒。
-    const response=await post('/report',{...input,messages:input.messages.filter(message=>message.role==='user').slice(-12)},[9000]);
+    const response=await post('/report',{...input,messages:input.messages.filter(message=>message.role==='user').slice(-12)},[14000]);
     if(!response?.ok)return null;
     const data=await response.json() as Partial<AiFeedback>;
-    if(typeof data.languageScore!=='number'||!Number.isFinite(data.languageScore)||typeof data.grammar!=='string'||typeof data.vocabulary!=='string'||typeof data.naturalness!=='string'||!Array.isArray(data.advice))return null;
-    return{languageScore:Math.max(0,Math.min(25,Math.round(data.languageScore))),grammar:data.grammar.slice(0,240),vocabulary:data.vocabulary.slice(0,240),naturalness:data.naturalness.slice(0,240),advice:data.advice.filter((item):item is string=>typeof item==='string').slice(0,3).map(item=>item.slice(0,180))};
+    const languageScore=Number(data.languageScore);
+    if(!Number.isFinite(languageScore)||typeof data.grammar!=='string'||typeof data.vocabulary!=='string'||typeof data.naturalness!=='string'||!Array.isArray(data.advice))return null;
+    return{languageScore:Math.max(0,Math.min(25,Math.round(languageScore))),grammar:data.grammar.trim().slice(0,240),vocabulary:data.vocabulary.trim().slice(0,240),naturalness:data.naturalness.trim().slice(0,240),advice:data.advice.filter((item):item is string=>typeof item==='string'&&Boolean(item.trim())).slice(0,3).map(item=>item.trim().slice(0,180))};
   }catch{return null}
 }

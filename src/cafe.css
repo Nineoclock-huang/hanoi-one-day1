@@ -103,3 +103,16 @@
 @media(max-width:760px){.rush-mode .cafe-task{padding-bottom:6px}.rush-timer{position:absolute;right:7px;top:5px;margin:0;padding:4px 6px}.rush-timer span{font-size:13px}.rush-timer small,.rush-timer svg{display:none}.rush-mode .cafe-task-title{padding-right:96px}.rush-mode .character-dan img{width:75%;left:12%}.rush-arrival{align-items:end;padding:10px 10px 15%}.rush-arrival>div{width:100%;margin:0;padding:18px;border-radius:19px}.rush-arrival h3{font-size:23px}.rush-arrival p{font-size:12px}.rush-arrival button{padding:10px 14px}.penalty-notice{top:7px;left:10px;right:10px;min-width:0;padding:9px 12px;transform:none}.penalty-notice span{font-size:11px}.penalty-notice strong{font-size:13px}@keyframes penalty-notice-in{from{opacity:0;transform:translateY(-14px) scale(.96)}to{opacity:1;transform:none}}}
 @media(max-width:760px){body.keyboard-open .rush-mode .rush-timer{top:3px;right:5px}.rush-mode .mood-impatient .mood-fx i{width:22px}}
 @media(prefers-reduced-motion:reduce){.rush-timer.is-urgent,.rush-mode .mood-impatient picture img,.rush-mode .mood-impatient .mood-fx i,.rush-arrival{animation:none!important}}
+
+/* The desktop Dận dimensions are declared late in this file; restore the full-width
+   mobile portrait after them so it is visible before the keyboard opens too. */
+@media(max-width:760px){
+ .rush-mode .character-stage.character-dan{top:104px;left:0;right:0;bottom:auto;width:100%;height:43%;min-height:0;visibility:visible;opacity:1}
+ .rush-mode .character-stage.character-dan img{width:72%;height:106%;left:14%;right:auto;bottom:-3%;object-position:center bottom;opacity:1}
+ body.keyboard-open .rush-mode .character-stage.character-dan{top:57px;left:3px;right:auto;bottom:3px;width:37%;height:auto}
+ body.keyboard-open .rush-mode .character-stage.character-dan img{width:100%;height:100%;left:0;bottom:0}
+}
+@media(max-height:720px) and (max-width:760px){
+ .rush-mode .character-stage.character-dan{top:88px;height:38%}
+ body.keyboard-open .rush-mode .character-stage.character-dan{top:57px;height:auto}
+}

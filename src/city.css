@@ -43,6 +43,8 @@
 .city-place-marker[hidden]{display:none}.city-place-marker:after{content:'';position:absolute;width:1px;height:8px;left:50%;top:100%;background:#668c7b}
 .city-place-marker.scene{color:#806648;background:#f5eddbed;border-color:#c9bba5}.city-place-marker:hover{background:white;box-shadow:0 5px 15px #2e574848;z-index:4}
 .city-pin{z-index:4;padding:7px 10px;font-size:12px;gap:6px}.city-pin small{font-size:9px}
+.city-pin.city-market-pin{background:#426b58;border-color:#f4e8bd;z-index:5}.city-pin.city-market-pin:after{border-top-color:#426b58}.city-pin.city-market-pin:hover{background:#2f5847}
+@media(max-width:760px){.city-pin.city-market-pin{max-width:150px}}
 .city-compass{right:18px;top:15px;z-index:2;padding:5px 10px;border-radius:12px;background:#f3f6ebc9}.city-compass i{transform:rotate(40deg);font-size:26px}.city-compass span{font-size:9px}
 .city-map-tools{position:absolute;right:14px;bottom:14px;z-index:5;display:flex;align-items:flex-end;gap:8px}
 .city-map-tools select{max-width:210px;min-width:150px;height:38px;padding:0 10px;border:1px solid #b6c9be;border-radius:10px;background:#fffdf2f5;color:#36594e;font:inherit;font-size:11px;box-shadow:0 5px 18px #37554425}

@@ -42,3 +42,11 @@ it('地点注册表没有重复 ID、失效分区或意外开放的任务',()=>{
   expect(cityPlace('opera').x).toBeGreaterThan(cityPlace('hoan-kiem').x);
   expect(clampCityZoom(10)).toBe(2.2);expect(clampCityZoom(.01)).toBe(.75);
 });
+
+it('同春市场使用开放任务气泡并可直接进入',async()=>{
+  const onMarket=vi.fn();render(<CityScene onEnter={vi.fn()} onMarket={onMarket}/>);
+  const bubble=await screen.findByRole('button',{name:'同春市场，进入采购任务'});
+  expect(bubble).toHaveTextContent('CHỢ ĐỒNG XUÂN');
+  expect(screen.queryByRole('button',{name:'了解同春市场'})).toBeNull();
+  fireEvent.click(bubble);expect(onMarket).toHaveBeenCalledOnce();
+});

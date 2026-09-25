@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "sources": [
+    {"id":"tch-menu","name":"The Coffee House 越南咖啡菜单","url":"https://info.thecoffeehouse.com/collections/ca-phe-viet-nam"},
+    {"id":"tch-service","name":"The Coffee House 服务与付款说明","url":"https://info.thecoffeehouse.com/pages/dieu-khoan-su-dung"},
+    {"id":"vietnam-tourism","name":"越南旅游局咖啡介绍","url":"https://www.vietnam.travel/things-to-do/11-cool-cafes-try-hcmc"}
+  ],
+  "terms": [
+    {"id":"milk-iced","category":"product","vi":"cà phê sữa đá","zh":"冰牛奶咖啡","evidence":"Cà Phê Sữa Đá","source":"tch-menu"},
+    {"id":"black-iced","category":"product","vi":"cà phê đen đá","zh":"冰黑咖啡","evidence":"Cà Phê Đen Đá","source":"tch-menu"},
+    {"id":"bac-xiu","category":"product","vi":"bạc xỉu","zh":"越南炼乳咖啡","evidence":"Bạc Xỉu","source":"tch-menu"},
+    {"id":"egg","category":"product","vi":"cà phê trứng","zh":"鸡蛋咖啡","evidence":"Ca phe trung","source":"vietnam-tourism"},
+    {"id":"takeaway","category":"service","vi":"mang đi","zh":"带走","evidence":"Mang đi","source":"tch-service"},
+    {"id":"here","category":"service","vi":"tại chỗ","zh":"在店内喝","evidence":"Tại chỗ","source":"tch-service"},
+    {"id":"cash","category":"payment","vi":"tiền mặt","zh":"现金","evidence":"Tiền mặt","source":"tch-service"},
+    {"id":"wallet","category":"payment","vi":"ví điện tử","zh":"电子钱包","evidence":"ví điện tử","source":"tch-service"}
+  ],
+  "examples": [
+    {"id":"order-milk","topic":"order","vi":"Cho mình một ly cà phê sữa đá nhé.","zh":"请给我一杯冰牛奶咖啡。","note":"口语中“cho mình … nhé”是自然、礼貌的点单方式；整句是教学组合表达，并非网页原文。","requires":["milk-iced"]},
+    {"id":"order-black","topic":"order","vi":"Cho mình một ly cà phê đen đá nhé.","zh":"请给我一杯冰黑咖啡。","note":"整句是教学组合表达，并非网页原文。","requires":["black-iced"]},
+    {"id":"order-bac-xiu","topic":"order","vi":"Cho mình một ly bạc xỉu nhé.","zh":"请给我一杯越南炼乳咖啡。","note":"bạc xỉu 的奶量通常高于咖啡；整句是教学组合表达。","requires":["bac-xiu"]},
+    {"id":"order-egg","topic":"order","vi":"Cho mình một ly cà phê trứng nhé.","zh":"请给我一杯鸡蛋咖啡。","note":"整句是教学组合表达，并非网页原文。","requires":["egg"]},
+    {"id":"less-sweet","topic":"sugar","vi":"Cho mình ít ngọt hơn một chút được không?","zh":"可以帮我做得不那么甜一点吗？","note":"冰牛奶咖啡通常含甜炼乳；只说“少糖”可能不够明确，可以请店员确认能否调低甜度。整句为教学组合表达。","requires":["milk-iced"]},
+    {"id":"takeaway","topic":"service","vi":"Mình mang đi nhé.","zh":"我带走。","note":"“mang đi”是品牌服务说明使用的外带说法；整句为教学组合表达。","requires":["takeaway"]},
+    {"id":"dine-in","topic":"service","vi":"Mình uống tại chỗ.","zh":"我在店里喝。","note":"“tại chỗ”是品牌服务说明使用的堂食说法；整句为教学组合表达。","requires":["here"]},
+    {"id":"cash","topic":"payment","vi":"Mình trả bằng tiền mặt.","zh":"我用现金付款。","note":"现金是否可用取决于具体门店；整句为教学组合表达。","requires":["cash"]},
+    {"id":"clarify-milk","topic":"product","vi":"Bạn muốn cà phê sữa đá hay bạc xỉu?","zh":"你要冰牛奶咖啡，还是越南炼乳咖啡？","note":"“bạc xỉu”通常奶的比例更高，不等同于冰牛奶咖啡。整句为教学组合表达。","requires":["milk-iced","bac-xiu"]}
+  ]
+}

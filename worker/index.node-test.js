@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import worker from './src/index.js';
+import {validKnowledge,knowledgeContext} from './src/knowledge.js';
+
+test('verified cafe language library grounds dialogue and advice without changing scores',async()=>{
+  assert.equal(validKnowledge({version:1,sources:[{id:'bad',url:'https://evil.example'}],terms:[],examples:[]}),false);
+  const context=knowledgeContext({terms:[{id:'milk-iced',vi:'cà phê sữa đá',zh:'冰牛奶咖啡'}],examples:[{id:'order-milk',vi:'Cho mình một ly cà phê sữa đá nhé.',zh:'请给我一杯冰牛奶咖啡。'}]}, {product:'milk-iced',sugar:'less',service:'takeaway'});
+  assert.match(context,/cà phê sữa đá/);
+  assert.match(context,/locked task results/);
+});
 
 test('market vendor receives locked price and returns bilingual dialogue',async()=>{
   const original=globalThis.fetch;let prompt='';
@@ -38,6 +46,7 @@ test('Worker returns a validated bilingual reply without exposing the key',async
     assert.match(upstreamBody.messages[0].content,/shortest exact evidence substring/);
     assert.match(upstreamBody.messages[0].content,/impatient Hanoi cafe barista/);
     assert.match(upstreamBody.messages[0].content,/never mention scores, penalties, timers, timeouts/);
+    assert.match(upstreamBody.messages[0].content,/Source-checked Vietnamese terms/);
     assert.match(upstreamBody.messages.at(-1).content,/only next topic.*payment/);
   }finally{globalThis.fetch=originalFetch}
 });
@@ -68,6 +77,7 @@ test('Worker returns compact language-only feedback without changing locked task
     assert.equal(upstreamBody.tool_choice.function.name,'submit_language_report');
     assert.equal(upstreamBody.max_tokens,500);
     assert.equal(upstreamBody.tools[0].function.name,'submit_language_report');
+    assert.match(upstreamBody.messages[0].content,/Teacher-composed/);
   }finally{globalThis.fetch=originalFetch}
 });
 

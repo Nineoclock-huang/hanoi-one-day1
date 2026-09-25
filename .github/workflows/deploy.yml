@@ -5,9 +5,11 @@ on:
     branches:
       - main
   workflow_dispatch:
+  schedule:
+    - cron: '17 2 * * 1'
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -39,11 +41,32 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Refresh source-checked Vietnamese library
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        id: knowledge
+        continue-on-error: true
+        run: npm run knowledge:update
+
+      - name: Explain unavailable source refresh
+        if: steps.knowledge.outcome == 'failure'
+        run: echo 'Source refresh failed; deploying the last verified language library.'
+
       - name: Run tests
         run: npm test
 
       - name: Build site
         run: npm run build
+
+      - name: Save verified language library
+        if: steps.knowledge.outcome == 'success'
+        run: |
+          git add public/knowledge/cafe.json
+          if ! git diff --cached --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "refresh verified Vietnamese cafe language library"
+            git push
+          fi
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5

@@ -4,6 +4,8 @@ export type DialogueMessage={role:'clerk'|'user';vi:string;zh?:string};
 export type ClerkMood='neutral'|'listening'|'happy'|'clarify';
 export type AiReply={vi:string;zh:string;attempts?:Partial<Assessment>;evidence?:Partial<Record<keyof Assessment,string>>;confidence?:Partial<Record<keyof Assessment,number>>;mood?:ClerkMood};
 export type AiFeedback={languageScore:number;grammar:string;vocabulary:string;naturalness:string;advice:string[]};
+export type AiFeedbackFailure='timeout'|'network'|'blocked'|'rate-limited'|'server'|'invalid'|'unconfigured';
+export type AiFeedbackResult={feedback:AiFeedback|null;failure?:AiFeedbackFailure};
 const defaultEndpoint=import.meta.env.MODE==='test'?'':'https://hanoi-one-day-ai.hanoi-one-day.workers.dev';
 const endpoint=((import.meta.env.VITE_AI_ENDPOINT as string|undefined)||defaultEndpoint).replace(/\/$/,'');
 export const isAiConfigured=Boolean(endpoint);
@@ -108,17 +110,32 @@ export async function requestAiReply(input:{messages:DialogueMessage[];target:Or
   }catch{return null}
 }
 
-export async function requestAiFeedback(input:{messages:DialogueMessage[];target:OrderTarget;assessment:Assessment;difficulty?:'standard'|'rush';responseTimes?:number[];timeouts?:number}):Promise<AiFeedback|null>{
-  if(!endpoint)return null;
-  try{
-    // 评分只请求一次，避免手机端一次失败后再额外等待 6 秒。
-    const response=await post('/report',{...input,messages:input.messages.filter(message=>message.role==='user').slice(-12)},[14000]);
-    if(!response?.ok)return null;
-    const data=await response.json() as Partial<AiFeedback>;
-    const languageScore=Number(data.languageScore);
-    if(!Number.isFinite(languageScore)||typeof data.grammar!=='string'||typeof data.vocabulary!=='string'||typeof data.naturalness!=='string'||!Array.isArray(data.advice))return null;
-    return{languageScore:Math.max(0,Math.min(25,Math.round(languageScore))),grammar:data.grammar.trim().slice(0,240),vocabulary:data.vocabulary.trim().slice(0,240),naturalness:data.naturalness.trim().slice(0,240),advice:data.advice.filter((item):item is string=>typeof item==='string'&&Boolean(item.trim())).slice(0,3).map(item=>item.trim().slice(0,180))};
-  }catch{return null}
+export async function requestAiFeedback(input:{messages:DialogueMessage[];target:OrderTarget;assessment:Assessment;difficulty?:'standard'|'rush';responseTimes?:number[];timeouts?:number},reportEndpoint=endpoint):Promise<AiFeedbackResult>{
+  if(!reportEndpoint)return{feedback:null,failure:'unconfigured'};
+  const payload=JSON.stringify({...input,messages:input.messages.filter(message=>message.role==='user').slice(-12),sessionId:sessionId()});
+  const attempt=async(limitMs:number):Promise<AiFeedbackResult>=>{
+    const controller=new AbortController();let timer=0;
+    const request=(async():Promise<AiFeedbackResult>=>{
+      try{
+        // 评分页不会离开页面，避免在微信 WebView 中使用受配额限制的 keepalive 请求。
+        const response=await fetch(`${reportEndpoint}/report`,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},credentials:'omit',cache:'no-store',signal:controller.signal,body:payload});
+        if(!response.ok)return{feedback:null,failure:response.status===403?'blocked':response.status===429?'rate-limited':response.status>=500?'server':'invalid'};
+        const data=await response.json() as Partial<AiFeedback>;
+        const languageScore=Number(data.languageScore);
+        if(!Number.isFinite(languageScore)||typeof data.grammar!=='string'||typeof data.vocabulary!=='string'||typeof data.naturalness!=='string'||!Array.isArray(data.advice))return{feedback:null,failure:'invalid'};
+        return{feedback:{languageScore:Math.max(0,Math.min(25,Math.round(languageScore))),grammar:data.grammar.trim().slice(0,240),vocabulary:data.vocabulary.trim().slice(0,240),naturalness:data.naturalness.trim().slice(0,240),advice:data.advice.filter((item):item is string=>typeof item==='string'&&Boolean(item.trim())).slice(0,3).map(item=>item.trim().slice(0,180))}};
+      }catch{return{feedback:null,failure:'network'}}
+    })();
+    const timeout=new Promise<AiFeedbackResult>(resolve=>{timer=window.setTimeout(()=>{controller.abort();resolve({feedback:null,failure:'timeout'})},limitMs)});
+    try{return await Promise.race([request,timeout])}finally{window.clearTimeout(timer)}
+  };
+  let result=await attempt(8000);
+  if(!result.feedback&&['timeout','network','server','invalid'].includes(result.failure||'')){
+    await pause(150);
+    result=await attempt(6000);
+  }
+  if(!result.feedback)console.warn('[AI report] unavailable:',result.failure);
+  return result;
 }
 
 export async function requestMarketReply(input:{stall:string;messages:DialogueMessage[];price:number;event:string;suggestedReply:DialogueMessage}):Promise<{vi:string;zh:string}|null>{

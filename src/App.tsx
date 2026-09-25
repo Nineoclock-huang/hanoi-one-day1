@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight, Check, Coffee, Lightbulb, RotateCcw, Sparkles, T
 import CityScene from './CityScene';
 import MarketScene from './MarketScene';
 import { asset, loadCity, warmCafe } from './loading';
-import { type AiFeedback, type ClerkMood, fallbackLanguageFeedback, isAiConfigured, requestAiFeedback, requestAiReply, trustedAiAttempts, warmAi } from './ai';
+import { type AiFeedback, type AiFeedbackFailure, type ClerkMood, fallbackLanguageFeedback, isAiConfigured, requestAiFeedback, requestAiReply, trustedAiAttempts, warmAi } from './ai';
 import { analyzeAttempts, analyzeContextualConfirmation, type Assessment, clerkReply, correctCriteria, type Criteria, criterionLabels, currentOrderTarget, emptyAssessment, finalScore, hints, mergeAssessment, normalizeVietnamese, orderSummary, randomizeOrderTarget, recommendedExpression, resolvedCount, resolvedCriteria, spokenOrder, type OrderTarget } from './engine';
 import { keyboardIsOpen } from './mobileViewport';
 import { cafeKnowledgeCheckedAt, cafeLearningTips } from './knowledge';
@@ -14,7 +14,7 @@ type Difficulty = 'standard' | 'rush';
 type CharacterMood = ClerkMood | 'impatient';
 type ChatMessage = { role: 'clerk' | 'user'; vi: string; zh?: string };
 type RushStats = { timeouts: number; responseTimes: number[] };
-type SavedReport = { score: number; objectiveScore: number; completedAt: string; expressions: string[]; criteria: Criteria; assessment: Assessment; target?: typeof currentOrderTarget; hints: number; feedback: AiFeedback | null; feedbackUnavailable?: boolean; difficulty: Difficulty; timeouts: number; responseTimes: number[]; timePenalty: number };
+type SavedReport = { score: number; objectiveScore: number; completedAt: string; expressions: string[]; criteria: Criteria; assessment: Assessment; target?: typeof currentOrderTarget; hints: number; feedback: AiFeedback | null; feedbackUnavailable?: boolean; feedbackFailure?: AiFeedbackFailure; difficulty: Difficulty; timeouts: number; responseTimes: number[]; timePenalty: number };
 
 const STORAGE_KEY = 'hanoi-one-day-reports';
 const RUSH_KEY = 'hanoi-one-day-rush-unlocked';
@@ -39,6 +39,7 @@ export default function App() {
   const [assessment, setAssessment] = useState<Assessment>({ ...emptyAssessment });
   const [hintsUsed, setHintsUsed] = useState(0);
   const [report, setReport] = useState<SavedReport | null>(null);
+  const [retryingFeedback,setRetryingFeedback]=useState(false);
   const [servedOrder, setServedOrder] = useState<OrderTarget>({...currentOrderTarget});
   const [reports, setReports] = useState<SavedReport[]>(loadReports);
   const navigationStep = screen === 'serving' || screen === 'grading' ? 4 : Math.max(0, steps.indexOf(screen));
@@ -63,19 +64,31 @@ export default function App() {
     const base: SavedReport = { score: objectiveScore, objectiveScore, completedAt: new Date().toISOString(), expressions: finalMessages.filter(message => message.role === 'user').map(message => message.vi), criteria: correctCriteria(finalAssessment), assessment: finalAssessment, target:{...currentOrderTarget}, hints: hintsUsed, feedback: null, difficulty, timeouts: stats.timeouts, responseTimes: stats.responseTimes, timePenalty };
     setServedOrder(spokenOrder(base.expressions,currentOrderTarget));
     let feedbackReady=false;
-    const feedbackPromise=requestAiFeedback({ messages: finalMessages, target: currentOrderTarget, assessment: finalAssessment, difficulty, responseTimes: stats.responseTimes, timeouts: stats.timeouts }).catch(()=>null).then(value=>{feedbackReady=true;return value});
+    const feedbackPromise=requestAiFeedback({ messages: finalMessages, target: currentOrderTarget, assessment: finalAssessment, difficulty, responseTimes: stats.responseTimes, timeouts: stats.timeouts }).catch(()=>({feedback:null,failure:'network' as const})).then(value=>{feedbackReady=true;return value});
     await new Promise(resolve=>window.setTimeout(resolve,300));
     setScreen('serving');
     await new Promise(resolve=>window.setTimeout(resolve,window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?350:2000));
     if(!feedbackReady)setScreen('grading');
-    const aiFeedback = await feedbackPromise;
+    const feedbackResult = await feedbackPromise;
+    const aiFeedback=feedbackResult.feedback;
     const feedback = aiFeedback || fallbackLanguageFeedback(finalMessages, finalAssessment);
-    const result: SavedReport = { ...base, score: Math.max(0, finalScore(finalAssessment, feedback.languageScore, hintsUsed) - timePenalty), feedback, feedbackUnavailable: !aiFeedback };
+    const result: SavedReport = { ...base, score: Math.max(0, finalScore(finalAssessment, feedback.languageScore, hintsUsed) - timePenalty), feedback, feedbackUnavailable: !aiFeedback, feedbackFailure:feedbackResult.failure };
     setReports(previous => { const updated = [result, ...previous].slice(0, 10); localStorage.setItem(STORAGE_KEY, JSON.stringify(updated)); return updated; });
     setReport(result);
     if (difficulty === 'standard' && !rushUnlocked) { localStorage.setItem(RUSH_KEY, 'yes'); setRushUnlocked(true); setCafeChanged(true); setNewlyUnlocked(true); } else setNewlyUnlocked(false);
     if(difficulty==='rush'){localStorage.setItem(RUSH_DONE_KEY,'yes');setRushCompleted(true);setCafeChanged(false);}
     setScreen('report');
+  };
+  const retryAiFeedback=async()=>{
+    if(!report||retryingFeedback)return;
+    setRetryingFeedback(true);
+    try{
+      const feedbackResult=await requestAiFeedback({messages:report.expressions.map(vi=>({role:'user' as const,vi})),target:report.target||currentOrderTarget,assessment:report.assessment,difficulty:report.difficulty,responseTimes:report.responseTimes,timeouts:report.timeouts});
+      const updated:SavedReport=feedbackResult.feedback?{...report,feedback:feedbackResult.feedback,feedbackUnavailable:false,feedbackFailure:undefined,score:Math.max(0,finalScore(report.assessment,feedbackResult.feedback.languageScore,report.hints)-report.timePenalty)}:{...report,feedbackFailure:feedbackResult.failure};
+      setReport(updated);
+      setReports(previous=>{const next=previous.map(item=>item.completedAt===updated.completedAt?updated:item);localStorage.setItem(STORAGE_KEY,JSON.stringify(next));return next});
+    }catch{setReport(previous=>previous?{...previous,feedbackFailure:'network'}:previous)}
+    finally{setRetryingFeedback(false)}
   };
 
   return <main className="app-shell"><header className="topbar"><button className="brand" onClick={() => setScreen('home')} aria-label="返回首页"><span className="brand-mark">河</span><span>河内的一天</span></button><div className="step-label">{String(navigationStep + 1).padStart(2, '0')} / 05 · {labels[screen]}</div></header><section key={screen} className={`screen screen-${screen}`}>
@@ -87,7 +100,7 @@ export default function App() {
     {screen === 'chat' && <Chat messages={messages} setMessages={setMessages} assessment={assessment} setAssessment={setAssessment} hintsUsed={hintsUsed} setHintsUsed={setHintsUsed} onComplete={finish} difficulty={difficulty} />}
     {screen === 'serving' && <Serving order={servedOrder} difficulty={difficulty} />}
     {screen === 'grading' && <Grading difficulty={difficulty} />}
-    {screen === 'report' && report && <Report report={report} newlyUnlocked={newlyUnlocked} onRetry={resetMission} onMap={() => setScreen('map')} />}
+    {screen === 'report' && report && <Report report={report} newlyUnlocked={newlyUnlocked} onRetry={resetMission} onMap={() => setScreen('map')} onRetryAi={retryAiFeedback} retryingFeedback={retryingFeedback} />}
   </section>{screen !== 'home' && screen !== 'report' && screen !== 'grading' && screen !== 'serving' && <button className="back-button" onClick={back}><ArrowLeft size={18} /> 返回</button>}</main>;
 }
 
@@ -155,8 +168,9 @@ function Chat({ messages, setMessages, assessment, setAssessment, hintsUsed, set
   </div>;
 }
 
-function Report({ report, newlyUnlocked, onRetry, onMap }: { report: SavedReport; newlyUnlocked: boolean; onRetry: () => void; onMap: () => void }) {
+const feedbackFailureText:Record<AiFeedbackFailure,string>={timeout:'等待 AI 响应超时',network:'与 AI 服务连接中断',blocked:'AI 服务拒绝了当前页面请求', 'rate-limited':'请求过于频繁，请稍后再试',server:'AI 服务暂时没有完成评分',invalid:'AI 返回的评分格式暂时无法读取',unconfigured:'AI 服务尚未配置'};
+function Report({ report, newlyUnlocked, onRetry, onMap, onRetryAi, retryingFeedback }: { report: SavedReport; newlyUnlocked: boolean; onRetry: () => void; onMap: () => void; onRetryAi:()=>void; retryingFeedback:boolean }) {
   const nonStandard = report.expressions.filter(text => normalizeVietnamese(text) === text.toLowerCase().replace(/\s+/g, ' ').trim()), average = averageResponseTime(report.responseTimes);
   const learningTips=cafeLearningTips(report.target||currentOrderTarget,report.assessment);
-  return <div className="report-page"><div className="report-heading"><div><p className="eyebrow">任务报告 · 已保存到本机</p><h2>{Object.values(report.assessment).every(value => value === 'correct') ? '任务完成，干得漂亮！' : '任务已结束，看看哪里还能进步。'}</h2><p className="lead">总分已包含任务正确性、语言评价{report.difficulty === 'rush' ? '和限时表现' : ''}。</p></div><div className="score-card score-ready"><strong>{report.score}</strong><span>/ 100</span><p>最终综合得分</p></div></div><div className="report-grid"><section className="report-panel"><h3>任务正确性 · {report.objectiveScore}/75</h3>{(Object.keys(report.assessment) as (keyof Assessment)[]).map(key => <div className="report-row" key={key}><span>{criterionLabels[key]}</span><strong>{report.assessment[key] === 'correct' ? '✓ 15 / 15' : '× 0 / 15'}</strong></div>)}{report.hints > 0 && <p className="deduction">使用 {report.hints} 次提示，扣除 {report.hints * 2} 分。</p>}{report.difficulty === 'rush' && <div className="rush-report"><h3>限时表现</h3><div className="report-row"><span>平均反应时间</span><strong>{(average / 1000).toFixed(2)} 秒</strong></div><div className="report-row"><span>超时次数</span><strong>{report.timeouts} 次</strong></div>{report.timePenalty > 0 && <p className="deduction">超时扣除 {report.timePenalty} 分；超时不会改变任务项目的对错。</p>}</div>}{Object.values(report.assessment).includes('incorrect') && <p className="deduction">有项目首次作答错误，综合分最高为 79；语言分不能抵消任务错误。</p>}<h3>语言表达 · {report.feedback ? `${report.feedback.languageScore}/25` : '未取得'}</h3><p>{report.feedbackUnavailable ? 'AI 评分连接异常，本次已自动生成基础语言评价，任务正确性不受影响。' : 'AI 辅助评分不改变上方首次答案的对错。'}</p></section><section className="report-panel"><h3>你的表达</h3>{report.expressions.map((text, index) => <p className="expression" key={index}>{text}</p>)}<h3>规范与建议</h3><p>{nonStandard.length > 0 ? '系统理解了你的无声调表达。正式书写时，请补全越南语声调符号。' : '你的表达包含了规范的越南语声调，继续保持。'}</p>{report.feedback && <><p><strong>语法：</strong>{report.feedback.grammar}</p><p><strong>词汇：</strong>{report.feedback.vocabulary}</p><p><strong>自然度：</strong>{report.feedback.naturalness}</p><h3>下一步练习</h3><ul>{report.feedback.advice.map((item, index) => <li key={index}>{item}</li>)}</ul></>}<div className="recommended"><small>推荐表达</small>{recommendedExpression}</div><div className="knowledge-tips"><h3>越南语表达库</h3><small>词语已对照越南本地资料 · 更新于 {cafeKnowledgeCheckedAt}</small>{learningTips.map(tip=><article key={tip.id}><strong>{tip.vi}</strong><span>{tip.zh}</span><p>{tip.note}</p>{tip.source&&<a href={tip.source.url} target="_blank" rel="noreferrer">查看词语来源：{tip.source.name}</a>}</article>)}</div></section></div><div className="report-actions"><div className="map-return-wrap">{newlyUnlocked && <div className="unlock-bubble"><Sparkles size={16} /><span><strong>新难度已解锁</strong>返回街区，看看咖啡馆的新变化</span></div>}<button className="secondary-button" onClick={onMap}>返回城市地图</button></div><button className="primary-button" onClick={onRetry}><RotateCcw size={18} /> 再练一次</button></div></div>;
+  return <div className="report-page"><div className="report-heading"><div><p className="eyebrow">任务报告 · 已保存到本机</p><h2>{Object.values(report.assessment).every(value => value === 'correct') ? '任务完成，干得漂亮！' : '任务已结束，看看哪里还能进步。'}</h2><p className="lead">总分已包含任务正确性、语言评价{report.difficulty === 'rush' ? '和限时表现' : ''}。</p></div><div className="score-card score-ready"><strong>{report.score}</strong><span>/ 100</span><p>最终综合得分</p></div></div><div className="report-grid"><section className="report-panel"><h3>任务正确性 · {report.objectiveScore}/75</h3>{(Object.keys(report.assessment) as (keyof Assessment)[]).map(key => <div className="report-row" key={key}><span>{criterionLabels[key]}</span><strong>{report.assessment[key] === 'correct' ? '✓ 15 / 15' : '× 0 / 15'}</strong></div>)}{report.hints > 0 && <p className="deduction">使用 {report.hints} 次提示，扣除 {report.hints * 2} 分。</p>}{report.difficulty === 'rush' && <div className="rush-report"><h3>限时表现</h3><div className="report-row"><span>平均反应时间</span><strong>{(average / 1000).toFixed(2)} 秒</strong></div><div className="report-row"><span>超时次数</span><strong>{report.timeouts} 次</strong></div>{report.timePenalty > 0 && <p className="deduction">超时扣除 {report.timePenalty} 分；超时不会改变任务项目的对错。</p>}</div>}{Object.values(report.assessment).includes('incorrect') && <p className="deduction">有项目首次作答错误，综合分最高为 79；语言分不能抵消任务错误。</p>}<h3>语言表达 · {report.feedback ? `${report.feedback.languageScore}/25` : '未取得'}</h3>{report.feedbackUnavailable?<div className="feedback-recovery" role="alert"><p>AI 评分未能完成：{feedbackFailureText[report.feedbackFailure||'network']}。当前显示基础语言评价，任务正确性不受影响。</p><button type="button" onClick={onRetryAi} disabled={retryingFeedback}>{retryingFeedback?'正在重新连接 AI…':'重新获取 AI 评分'}</button></div>:<p>AI 辅助评分不改变上方首次答案的对错。</p>}</section><section className="report-panel"><h3>你的表达</h3>{report.expressions.map((text, index) => <p className="expression" key={index}>{text}</p>)}<h3>规范与建议</h3><p>{nonStandard.length > 0 ? '系统理解了你的无声调表达。正式书写时，请补全越南语声调符号。' : '你的表达包含了规范的越南语声调，继续保持。'}</p>{report.feedback && <><p><strong>语法：</strong>{report.feedback.grammar}</p><p><strong>词汇：</strong>{report.feedback.vocabulary}</p><p><strong>自然度：</strong>{report.feedback.naturalness}</p><h3>下一步练习</h3><ul>{report.feedback.advice.map((item, index) => <li key={index}>{item}</li>)}</ul></>}<div className="recommended"><small>推荐表达</small>{recommendedExpression}</div><div className="knowledge-tips"><h3>越南语表达库</h3><small>词语已对照越南本地资料 · 更新于 {cafeKnowledgeCheckedAt}</small>{learningTips.map(tip=><article key={tip.id}><strong>{tip.vi}</strong><span>{tip.zh}</span><p>{tip.note}</p>{tip.source&&<a href={tip.source.url} target="_blank" rel="noreferrer">查看词语来源：{tip.source.name}</a>}</article>)}</div></section></div><div className="report-actions"><div className="map-return-wrap">{newlyUnlocked && <div className="unlock-bubble"><Sparkles size={16} /><span><strong>新难度已解锁</strong>返回街区，看看咖啡馆的新变化</span></div>}<button className="secondary-button" onClick={onMap}>返回城市地图</button></div><button className="primary-button" onClick={onRetry}><RotateCcw size={18} /> 再练一次</button></div></div>;
 }

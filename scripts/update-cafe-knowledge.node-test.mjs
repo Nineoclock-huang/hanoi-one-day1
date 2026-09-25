@@ -4,6 +4,11 @@ import {readFile} from 'node:fs/promises';
 import {buildCafeKnowledge} from './update-cafe-knowledge.mjs';
 
 const catalog=JSON.parse(await readFile(new URL('../knowledge/cafe.catalog.json',import.meta.url),'utf8'));
+test('bundled and published language libraries match',async()=>{
+  const bundled=await readFile(new URL('../knowledge/cafe.json',import.meta.url),'utf8');
+  const published=await readFile(new URL('../public/knowledge/cafe.json',import.meta.url),'utf8');
+  assert.equal(bundled,published);
+});
 test('only source-observed terms enter the language library',async()=>{
   const pages={
     'tch-menu':'Cà Phê Sữa Đá Cà Phê Đen Đá Bạc Xỉu',

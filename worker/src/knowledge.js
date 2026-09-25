@@ -1,4 +1,4 @@
-import bundled from '../../public/knowledge/cafe.json' with {type:'json'};
+import bundled from '../../knowledge/cafe.json' with {type:'json'};
 
 const libraryUrl='https://nineoclock-huang.github.io/hanoi-one-day1/knowledge/cafe.json';
 let current=bundled,nextRefresh=0,refreshing=null;

@@ -2,6 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 
 const catalogUrl=new URL('../knowledge/cafe.catalog.json',import.meta.url);
 const outputUrl=new URL('../public/knowledge/cafe.json',import.meta.url);
+const bundledUrl=new URL('../knowledge/cafe.json',import.meta.url);
 const normalize=value=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/gi,'d').toLowerCase().replace(/\s+/g,' ').trim();
 function visibleText(html){return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,' ').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;|&#160;/gi,' ').replace(/&amp;/gi,'&').replace(/\s+/g,' ')}
 export async function buildCafeKnowledge(catalog,fetchPage=fetch){
@@ -21,6 +22,6 @@ export async function buildCafeKnowledge(catalog,fetchPage=fetch){
   return{version:1,checkedAt:new Date().toISOString().slice(0,10),sources,terms,examples};
 }
 if(process.argv[1]&&new URL(`file:///${process.argv[1].replace(/\\/g,'/')}`).href===import.meta.url){
-  try{const catalog=JSON.parse(await readFile(catalogUrl,'utf8')),result=await buildCafeKnowledge(catalog);await writeFile(outputUrl,JSON.stringify(result,null,2)+'\n');console.log(`Verified ${result.terms.length} terms and ${result.examples.length} teaching examples.`)}
+  try{const catalog=JSON.parse(await readFile(catalogUrl,'utf8')),result=await buildCafeKnowledge(catalog),serialized=JSON.stringify(result,null,2)+'\n';await Promise.all([writeFile(outputUrl,serialized),writeFile(bundledUrl,serialized)]);console.log(`Verified ${result.terms.length} terms and ${result.examples.length} teaching examples.`)}
   catch(error){console.error(error);process.exitCode=1}
 }

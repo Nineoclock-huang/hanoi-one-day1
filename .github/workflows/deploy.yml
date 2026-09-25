@@ -60,7 +60,7 @@ jobs:
       - name: Save verified language library
         if: steps.knowledge.outcome == 'success'
         run: |
-          git add public/knowledge/cafe.json
+          git add knowledge/cafe.json public/knowledge/cafe.json
           if ! git diff --cached --quiet; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

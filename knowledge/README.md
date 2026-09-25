@@ -1,6 +1,6 @@
 # 咖啡馆越南语表达库
 
-`cafe.catalog.json` 是允许采集的越南语来源和候选词条。`public/knowledge/cafe.json` 是自动生成的公开语言库，供网页报告展示，也供 AI Worker 在后台更新。
+`cafe.catalog.json` 是允许采集的越南语来源和候选词条。更新脚本同时生成 `cafe.json`（供网页和 Worker 打包）与 `public/knowledge/cafe.json`（公开更新地址），两份内容一致。
 
 更新命令：`pnpm knowledge:update`。GitHub Pages 工作流每周一自动运行一次，再执行测试和构建。更新成功才写入 Git；来源访问失败时保留上一版。Worker 不在玩家每次对话前等待网页抓取：它立即使用已打包的语言库，在后台按约 30 分钟间隔读取公开的新版 JSON。
 

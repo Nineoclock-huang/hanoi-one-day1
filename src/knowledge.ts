@@ -1,4 +1,4 @@
-import library from '../public/knowledge/cafe.json';
+import library from '../knowledge/cafe.json';
 import type {Assessment,OrderTarget} from './engine';
 
 export function cafeLearningTips(target:OrderTarget,assessment:Assessment){

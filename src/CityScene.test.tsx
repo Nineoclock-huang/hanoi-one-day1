@@ -16,7 +16,7 @@ it('无 WebGL 时可完成咖啡任务并返回城市',async()=>{
   await waitFor(()=>expect(screen.getByText('Bạn muốn thanh toán bằng cách nào?')).toBeInTheDocument());
   fireEvent.change(screen.getByRole('textbox'),{target:{value:'Tôi thanh toán.'}});
   fireEvent.click(screen.getByRole('button',{name:'发送'}));
-  await waitFor(()=>expect(screen.getByText('任务报告 · 已保存到本机')).toBeInTheDocument());
+  await waitFor(()=>expect(screen.getByText('任务报告 · 已保存到本机')).toBeInTheDocument(),{timeout:4500});
   expect(screen.getByText('越南语表达库')).toBeInTheDocument();
   expect(screen.getAllByRole('link',{name:/查看词语来源/}).length).toBeGreaterThan(0);
   expect(JSON.parse(localStorage.getItem('hanoi-one-day-reports')!)[0].objectiveScore).toBe(75);
@@ -34,7 +34,7 @@ it('首次答错打叉且后续改口不能补分，仍可完成报告',async()=
   await waitFor(()=>expect(screen.getByText('Bạn muốn thanh toán bằng cách nào?')).toBeInTheDocument());
   fireEvent.change(screen.getByRole('textbox'),{target:{value:'Cà phê sữa đá. Tôi thanh toán.'}});
   fireEvent.click(screen.getByRole('button',{name:'发送'}));
-  await waitFor(()=>expect(screen.getByText('任务报告 · 已保存到本机')).toBeInTheDocument());
+  await waitFor(()=>expect(screen.getByText('任务报告 · 已保存到本机')).toBeInTheDocument(),{timeout:4500});
   const saved=JSON.parse(localStorage.getItem('hanoi-one-day-reports')!)[0];
   expect(saved.assessment.product).toBe('incorrect');
   expect(saved.objectiveScore).toBe(60);

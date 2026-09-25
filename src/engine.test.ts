@@ -1,11 +1,12 @@
 import{describe,expect,it}from'vitest';
-import{analyzeAttempts,analyzeContextualConfirmation,analyzeConversation,analyzeMessage,clerkReply,combineClerkAcknowledgement,completedCount,emptyAssessment,emptyCriteria,finalScore,generateOrderTarget,mergeAssessment,mergeCriteria,normalizeVietnamese,OrderTarget}from'./engine';
+import{analyzeAttempts,analyzeContextualConfirmation,analyzeConversation,analyzeMessage,clerkReply,combineClerkAcknowledgement,completedCount,emptyAssessment,emptyCriteria,finalScore,generateOrderTarget,mergeAssessment,mergeCriteria,normalizeVietnamese,spokenOrder,OrderTarget}from'./engine';
 const milkOrder:OrderTarget={product:'milk-iced',quantity:1,sugar:'less',service:'takeaway'};
 describe('越南语规则识别',()=>{
   it('忽略声调、大小写和多余空格',()=>expect(normalizeVietnamese('  CÀ   PHÊ SỮA ĐÁ  ')).toBe('ca phe sua da'));
   it('识别完整随机订单信息',()=>{const result=mergeCriteria(emptyCriteria,analyzeMessage('Cho toi mot ly ca phe sua da it duong mang di',milkOrder));expect(completedCount(result)).toBe(4);expect(result).toMatchObject({product:true,quantity:true,sugar:true,service:true,payment:false})});
   it('识别付款确认',()=>expect(analyzeMessage('Tôi thanh toán bằng tiền mặt',milkOrder).payment).toBe(true));
   it('可生成不同商品、杯数、糖量和用餐方式',()=>{expect(generateOrderTarget(()=>0)).toEqual({product:'milk-iced',quantity:1,sugar:'none',service:'takeaway'});expect(generateOrderTarget(()=>.99)).toEqual({product:'egg',quantity:2,sugar:'normal',service:'here'})});
+  it('上咖啡画面跟随玩家最后说出的饮品、杯数与外带方式',()=>{expect(spokenOrder(['Cho tôi một ly cà phê đen đá.','Xin đổi thành hai ly bạc xỉu, uống tại chỗ.'],milkOrder)).toEqual({product:'bac-xiu',quantity:2,sugar:'less',service:'here'})});
 });
 describe('对话累计理解',()=>{
   it('一句中同时出现商品和少糖时不会再次询问糖量',()=>{const state=analyzeConversation(['Cho toi ca phe sua da va it duong'],milkOrder);expect(state.product).toBe(true);expect(state.sugar).toBe(true);expect(clerkReply(state,['Cho toi ca phe sua da va it duong'],milkOrder).zh).toBe('你需要一杯，对吗？')});

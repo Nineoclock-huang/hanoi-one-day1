@@ -43,6 +43,12 @@ function detectedProduct(text:string){return(Object.keys(products)as ProductId[]
 function detectedSugar(text:string){return(Object.keys(sugars)as SugarId[]).find(id=>any(text,sugars[id].terms))}
 function detectedService(text:string){return(Object.keys(services)as ServiceId[]).find(id=>any(text,services[id].terms))}
 function detectedQuantity(text:string){return([1,2]as const).find(value=>any(text,quantityTerms[value]))}
+export function spokenOrder(inputs:string[],fallback:OrderTarget):OrderTarget{
+  return inputs.reduce((order,input)=>{
+    const text=normalizeVietnamese(input);
+    return{product:detectedProduct(text)??order.product,quantity:detectedQuantity(text)??order.quantity,sugar:detectedSugar(text)??order.sugar,service:detectedService(text)??order.service};
+  },{...fallback});
+}
 export function analyzeMessage(input:string,target=currentOrderTarget):Partial<Criteria>{const text=normalizeVietnamese(input);return{product:detectedProduct(text)===target.product,quantity:detectedQuantity(text)===target.quantity,sugar:detectedSugar(text)===target.sugar,service:detectedService(text)===target.service,payment:any(text,paymentTerms)}}
 export function analyzeAttempts(input:string,target=currentOrderTarget):Partial<Assessment>{const text=normalizeVietnamese(input),product=detectedProduct(text),quantity=detectedQuantity(text),sugar=detectedSugar(text),service=detectedService(text),result:Partial<Assessment>={};if(product)result.product=product===target.product?'correct':'incorrect';if(quantity)result.quantity=quantity===target.quantity?'correct':'incorrect';if(sugar)result.sugar=sugar===target.sugar?'correct':'incorrect';if(service)result.service=service===target.service?'correct':'incorrect';if(any(text,paymentTerms))result.payment='correct';if(any(text,['khong thanh toan','khong tra tien','khong mua nua']))result.payment='incorrect';return result}
 const affirmativeVietnamese=new Set(['dung','dung roi','vang','da','phai','phai roi','co','ok','okay','yes']);

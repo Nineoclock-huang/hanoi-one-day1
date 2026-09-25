@@ -4,12 +4,12 @@ import CityScene from './CityScene';
 import MarketScene from './MarketScene';
 import { asset, loadCity, warmCafe } from './loading';
 import { type AiFeedback, type ClerkMood, fallbackLanguageFeedback, isAiConfigured, requestAiFeedback, requestAiReply, trustedAiAttempts, warmAi } from './ai';
-import { analyzeAttempts, analyzeContextualConfirmation, type Assessment, clerkReply, correctCriteria, type Criteria, criterionLabels, currentOrderTarget, emptyAssessment, finalScore, hints, mergeAssessment, normalizeVietnamese, orderSummary, randomizeOrderTarget, recommendedExpression, resolvedCount, resolvedCriteria } from './engine';
+import { analyzeAttempts, analyzeContextualConfirmation, type Assessment, clerkReply, correctCriteria, type Criteria, criterionLabels, currentOrderTarget, emptyAssessment, finalScore, hints, mergeAssessment, normalizeVietnamese, orderSummary, randomizeOrderTarget, recommendedExpression, resolvedCount, resolvedCriteria, spokenOrder, type OrderTarget } from './engine';
 import { keyboardIsOpen } from './mobileViewport';
 import { cafeKnowledgeCheckedAt, cafeLearningTips } from './knowledge';
 import { averageResponseTime, formatCountdown, RUSH_QUESTION_LIMIT_MS, rushPenalty } from './rush';
 
-type Screen = 'home' | 'map' | 'mission' | 'chat' | 'grading' | 'report' | 'cafe-choice' | 'market';
+type Screen = 'home' | 'map' | 'mission' | 'chat' | 'serving' | 'grading' | 'report' | 'cafe-choice' | 'market';
 type Difficulty = 'standard' | 'rush';
 type CharacterMood = ClerkMood | 'impatient';
 type ChatMessage = { role: 'clerk' | 'user'; vi: string; zh?: string };
@@ -21,7 +21,7 @@ const RUSH_KEY = 'hanoi-one-day-rush-unlocked';
 const RUSH_DONE_KEY = 'hanoi-one-day-rush-completed';
 function rushWasCompleted(){return localStorage.getItem(RUSH_DONE_KEY)==='yes'||loadReports().some(report=>report.difficulty==='rush');}
 const steps: Screen[] = ['home', 'map', 'mission', 'chat', 'report'];
-const labels: Record<Screen, string> = { home: '首页', map: '城市地图', mission: '任务介绍', chat: '对话场景', grading: 'AI 评分', report: '任务报告', 'cafe-choice':'咖啡馆 · 任务选择', market:'同春市场' };
+const labels: Record<Screen, string> = { home: '首页', map: '城市地图', mission: '任务介绍', chat: '对话场景', serving: '咖啡已送达', grading: 'AI 评分', report: '任务报告', 'cafe-choice':'咖啡馆 · 任务选择', market:'同春市场' };
 const sprite = (clerk: 'Lạc' | 'Dận', mood: CharacterMood, size: 448 | 768) => {
   if (clerk === 'Dận') return asset(`dan${mood === 'neutral' ? '' : mood === 'clarify' || mood === 'impatient' ? '-impatient' : `-${mood}`}-${size}.webp`);
   return asset(`clerk${mood === 'neutral' ? '' : mood === 'impatient' ? '-clarify' : `-${mood}`}-${size}.webp`);
@@ -39,8 +39,9 @@ export default function App() {
   const [assessment, setAssessment] = useState<Assessment>({ ...emptyAssessment });
   const [hintsUsed, setHintsUsed] = useState(0);
   const [report, setReport] = useState<SavedReport | null>(null);
+  const [servedOrder, setServedOrder] = useState<OrderTarget>({...currentOrderTarget});
   const [reports, setReports] = useState<SavedReport[]>(loadReports);
-  const navigationStep = screen === 'grading' ? 4 : Math.max(0, steps.indexOf(screen));
+  const navigationStep = screen === 'serving' || screen === 'grading' ? 4 : Math.max(0, steps.indexOf(screen));
   const viewportBaseline = useRef(Math.max(window.innerHeight, window.visualViewport?.height || 0));
   const greeting = (mode: Difficulty): ChatMessage => mode === 'rush' ? { role: 'clerk', vi: 'Chào bạn. Gọi món nhanh nhé, tôi đang rất bận.', zh: '你好。请快点单，我现在很忙。' } : { role: 'clerk', vi: 'Xin chào! Bạn muốn uống gì?', zh: '你好！你想喝什么？' };
   const resetMission = () => { warmCafe(difficulty==='rush'); setMessages([greeting(difficulty)]); setAssessment({ ...emptyAssessment }); setHintsUsed(0); setReport(null); setScreen('chat'); };
@@ -60,8 +61,14 @@ export default function App() {
     const timePenalty = difficulty === 'rush' ? rushPenalty(stats.timeouts) : 0;
     const objectiveScore = Math.max(0, Object.values(finalAssessment).filter(value => value === 'correct').length * 15 - hintsUsed * 2 - timePenalty);
     const base: SavedReport = { score: objectiveScore, objectiveScore, completedAt: new Date().toISOString(), expressions: finalMessages.filter(message => message.role === 'user').map(message => message.vi), criteria: correctCriteria(finalAssessment), assessment: finalAssessment, target:{...currentOrderTarget}, hints: hintsUsed, feedback: null, difficulty, timeouts: stats.timeouts, responseTimes: stats.responseTimes, timePenalty };
-    setScreen('grading');
-    const aiFeedback = await requestAiFeedback({ messages: finalMessages, target: currentOrderTarget, assessment: finalAssessment, difficulty, responseTimes: stats.responseTimes, timeouts: stats.timeouts });
+    setServedOrder(spokenOrder(base.expressions,currentOrderTarget));
+    let feedbackReady=false;
+    const feedbackPromise=requestAiFeedback({ messages: finalMessages, target: currentOrderTarget, assessment: finalAssessment, difficulty, responseTimes: stats.responseTimes, timeouts: stats.timeouts }).catch(()=>null).then(value=>{feedbackReady=true;return value});
+    await new Promise(resolve=>window.setTimeout(resolve,300));
+    setScreen('serving');
+    await new Promise(resolve=>window.setTimeout(resolve,window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?350:2000));
+    if(!feedbackReady)setScreen('grading');
+    const aiFeedback = await feedbackPromise;
     const feedback = aiFeedback || fallbackLanguageFeedback(finalMessages, finalAssessment);
     const result: SavedReport = { ...base, score: Math.max(0, finalScore(finalAssessment, feedback.languageScore, hintsUsed) - timePenalty), feedback, feedbackUnavailable: !aiFeedback };
     setReports(previous => { const updated = [result, ...previous].slice(0, 10); localStorage.setItem(STORAGE_KEY, JSON.stringify(updated)); return updated; });
@@ -78,14 +85,28 @@ export default function App() {
     {screen === 'market' && <MarketScene />}
     {screen === 'mission' && <Mission onStart={resetMission} difficulty={difficulty} />}
     {screen === 'chat' && <Chat messages={messages} setMessages={setMessages} assessment={assessment} setAssessment={setAssessment} hintsUsed={hintsUsed} setHintsUsed={setHintsUsed} onComplete={finish} difficulty={difficulty} />}
+    {screen === 'serving' && <Serving order={servedOrder} difficulty={difficulty} />}
     {screen === 'grading' && <Grading difficulty={difficulty} />}
     {screen === 'report' && report && <Report report={report} newlyUnlocked={newlyUnlocked} onRetry={resetMission} onMap={() => setScreen('map')} />}
-  </section>{screen !== 'home' && screen !== 'report' && screen !== 'grading' && <button className="back-button" onClick={back}><ArrowLeft size={18} /> 返回</button>}</main>;
+  </section>{screen !== 'home' && screen !== 'report' && screen !== 'grading' && screen !== 'serving' && <button className="back-button" onClick={back}><ArrowLeft size={18} /> 返回</button>}</main>;
 }
 
 function Home({ onStart, latest }: { onStart: () => void; latest?: SavedReport }) { return <div className="hero"><div className="hero-copy"><p className="eyebrow">VIETNAMESE · CITY PRACTICE</p><h1>河内的<br /><em>一天</em></h1><p className="subtitle">在一座虚拟城市中学习真实的越南语</p><div className="home-actions"><button className="primary-button" onClick={onStart}>{latest ? '继续探索' : '开始体验'} <ArrowRight size={20} /></button>{latest && <div className="last-score"><strong>{latest.score}</strong><span>上次任务得分</span></div>}</div></div><div className="street-card" aria-label="河内咖啡店氛围图形"><span className="sun" /><div className="awning"><span /><span /><span /><span /><span /></div><div className="shop-sign">CÀ PHÊ</div><div className="shop-window"><Coffee size={54} /></div><div className="street-line" /><div className="scooter">○━●</div><p>Phố cổ · Hà Nội</p></div></div>; }
 function Mission({ onStart, difficulty }: { onStart: () => void; difficulty: Difficulty }) { const rush = difficulty === 'rush'; return <div className={`page-wrap narrow ${rush ? 'rush-mission' : ''}`}><p className="eyebrow">{rush ? '限时挑战 · DẬN · A2' : '任务 01 · 街角咖啡店 · A1'}</p><h2>{rush ? '店员似乎发生了变化。' : '这次，请点'}<br />{rush ? 'Dận 正在等你点单' : orderSummary()}</h2><div className="scenario-note"><strong>{rush ? '新的挑战规则' : '你的情境'}</strong><p>{rush ? `每个问题只有 ${RUSH_QUESTION_LIMIT_MS / 1000} 秒。倒计时精确到毫秒，超时扣 5 分，但不会自动判错，你仍可继续回答。` : '上午九点，你走进河内老城区的一家咖啡店。请用越南语完成这张随机订单。'}</p></div><div className="mission-card"><p>{rush ? 'Dận 的订单仍包含 5 个目标：' : '需要作答 5 个目标（每项只有一次评分机会）：'}</p><ul>{Object.values(criterionLabels).map((label, index) => <li key={label}><span>{String(index + 1).padStart(2, '0')}</span>{label}</li>)}</ul></div><p className="tip">{rush ? '思考要快，表达也要完整。AI 会保持店员身份并根据你的回答继续追问。' : '答错也能继续对话，但首次明确作答的结果会锁定。系统可以理解无声调、大小写和常见空格问题。'}</p><button className="primary-button" onClick={onStart}>{rush ? '接受限时挑战' : '进入咖啡店'} <ArrowRight size={20} /></button></div>; }
 function Grading({ difficulty }: { difficulty: Difficulty }) { return <div className="grading-stage" role="status" aria-live="polite"><div className="grading-orbit"><span /><span /><span /><Sparkles size={32} /></div><p className="eyebrow">任务完成 · 正在整理学习报告</p><h2>AI 正在完成评分</h2><p>正在核对首次作答、越南语表达{difficulty === 'rush' ? '与限时表现' : ''}。总分确认后会自动打开报告。</p><div className="grading-progress"><i /></div><div className="grading-steps"><span>任务正确性</span><span>语言自然度</span><span>{difficulty === 'rush' ? '反应速度' : '学习建议'}</span></div></div>; }
+
+export function Serving({order,difficulty}:{order:OrderTarget;difficulty:Difficulty}){
+  const clerk=difficulty==='rush'?'Dận':'Lạc';
+  const drinkNames:Record<OrderTarget['product'],string>={'milk-iced':'冰牛奶咖啡','black-iced':'冰黑咖啡','bac-xiu':'bạc xỉu','egg':'鸡蛋咖啡'};
+  const cupNames:Record<OrderTarget['product'],string>={'milk-iced':'SỮA ĐÁ','black-iced':'ĐEN ĐÁ','bac-xiu':'BẠC XỈU','egg':'TRỨNG'};
+  return <div className={`serving-scene drink-${order.product} serve-${order.service}`} role="status" aria-label={`${clerk} 正在端上${drinkNames[order.product]}`}>
+    <div className="serving-room" aria-hidden="true" />
+    <div className="serving-clerk"><picture><source media="(max-width:760px)" srcSet={sprite(clerk,difficulty==='rush'?'neutral':'happy',448)}/><img src={sprite(clerk,difficulty==='rush'?'neutral':'happy',768)} alt={`${clerk} 店员`}/></picture></div>
+    <div className="serving-copy"><span>ORDER READY · PHỐ CỔ</span><h2>{order.service==='takeaway'?'咖啡备好了。':'咖啡上桌了。'}</h2><p>{clerk}：{difficulty==='rush'?'Của bạn đây.':'Cà phê của bạn đây. Chúc bạn một ngày vui nhé!'}</p><small>{orderSummary(order)}</small></div>
+    <div className={`serving-tray ${order.quantity===2?'two-cups':''}`} aria-hidden="true"><div className="serving-cups">{Array.from({length:order.quantity},(_,index)=><div className="serving-cup" key={index}><i className="cup-straw"/><i className="cup-lid"/><i className="cup-foam"/><i className="cup-ice ice-one"/><i className="cup-ice ice-two"/><i className="cup-ice ice-three"/><i className="cup-sleeve">{cupNames[order.product]}</i><i className="cup-handle"/><i className="cup-saucer"/></div>)}</div><div className="tray-plate"/><div className="tray-shadow"/></div>
+    <div className="serving-caption">{order.service==='takeaway'?'装杯 · 递到你手中':'装杯 · 放上托盘 · 送到桌边'}<span>正在整理学习报告</span></div>
+  </div>;
+}
 
 function Chat({ messages, setMessages, assessment, setAssessment, hintsUsed, setHintsUsed, onComplete, difficulty }: { messages: ChatMessage[]; setMessages: Dispatch<SetStateAction<ChatMessage[]>>; assessment: Assessment; setAssessment: Dispatch<SetStateAction<Assessment>>; hintsUsed: number; setHintsUsed: Dispatch<SetStateAction<number>>; onComplete: (assessment: Assessment, messages: ChatMessage[], stats: RushStats) => void; difficulty: Difficulty }) {
   const rush = difficulty === 'rush', clerk = rush ? 'Dận' : 'Lạc';

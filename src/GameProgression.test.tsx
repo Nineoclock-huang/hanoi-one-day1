@@ -31,7 +31,9 @@ it('等待 AI 评分完成后才展示总分，并解锁 Dận 限时挑战', as
   await waitFor(() => expect(screen.getByText('Bạn muốn thanh toán bằng cách nào?')).toBeInTheDocument());
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Tôi thanh toán bằng tiền mặt.' } });
   fireEvent.click(screen.getByRole('button', { name: '发送' }));
-  await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('AI 正在完成评分'));
+  await waitFor(() => expect(screen.getByRole('status', { name: 'Lạc 正在端上冰牛奶咖啡' })).toBeInTheDocument());
+  expect(screen.getByRole('status', { name: 'Lạc 正在端上冰牛奶咖啡' })).toHaveClass('drink-milk-iced', 'serve-takeaway');
+  await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('AI 正在完成评分'),{timeout:4500});
   expect(screen.queryByText('最终综合得分')).not.toBeInTheDocument();
   finishFeedback({ languageScore: 22, grammar: '语法准确', vocabulary: '词汇合适', naturalness: '表达自然', advice: ['继续练习'] });
   await waitFor(() => expect(screen.getByText('最终综合得分')).toBeInTheDocument());
@@ -69,7 +71,7 @@ it('完成 Dận 支线后再次进入可选择两位店员，刷新后保留选
  await waitFor(()=>expect(screen.getByText('当前设备无法显示 3D 城市。')).toBeInTheDocument());
  fireEvent.click(screen.getByRole('button',{name:'进入咖啡店'}));fireEvent.click(screen.getByRole('button',{name:'接受限时挑战'}));fireEvent.click(screen.getByRole('button',{name:/我准备好了/}));
  fireEvent.change(screen.getByRole('textbox'),{target:{value:'Cho tôi một ly cà phê sữa đá ít đường mang đi. Tôi thanh toán bằng tiền mặt.'}});fireEvent.click(screen.getByRole('button',{name:'发送'}));
- await waitFor(()=>expect(screen.getByText('最终综合得分')).toBeInTheDocument());expect(localStorage.getItem('hanoi-one-day-rush-completed')).toBe('yes');
+ await waitFor(()=>expect(screen.getByText('最终综合得分')).toBeInTheDocument(),{timeout:4500});expect(localStorage.getItem('hanoi-one-day-rush-completed')).toBe('yes');
  fireEvent.click(screen.getByRole('button',{name:'返回城市地图'}));await waitFor(()=>expect(screen.getByText('当前设备无法显示 3D 城市。')).toBeInTheDocument());fireEvent.click(screen.getByRole('button',{name:'进入咖啡店'}));
  expect(screen.getByRole('heading',{name:'Lạc 回到了柜台。'})).toBeInTheDocument();
  fireEvent.click(screen.getByRole('button',{name:/主线 · 日常点单/}));expect(screen.getByRole('button',{name:'进入咖啡店'})).toBeInTheDocument();

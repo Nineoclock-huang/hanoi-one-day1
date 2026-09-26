@@ -38,6 +38,7 @@ yarn-error.log*
 # typescript
 next-env.d.ts
 /dist/
+/tencent/ai/dist/
 /.wrangler/
 *.tsbuildinfo
 vite.config.js

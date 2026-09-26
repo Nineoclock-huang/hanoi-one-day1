@@ -1,4 +1,5 @@
 import {normalizeVietnamese,type Assessment,type Criteria,type OrderTarget} from './engine';
+import {selectAiEndpoint,TENCENT_AI_ENDPOINT} from './aiEndpoint';
 
 export type DialogueMessage={role:'clerk'|'user';vi:string;zh?:string};
 export type ClerkMood='neutral'|'listening'|'happy'|'clarify';
@@ -6,8 +7,8 @@ export type AiReply={vi:string;zh:string;attempts?:Partial<Assessment>;evidence?
 export type AiFeedback={languageScore:number;grammar:string;vocabulary:string;naturalness:string;advice:string[]};
 export type AiFeedbackFailure='timeout'|'network'|'blocked'|'rate-limited'|'server'|'invalid'|'unconfigured';
 export type AiFeedbackResult={feedback:AiFeedback|null;failure?:AiFeedbackFailure};
-const defaultEndpoint=import.meta.env.MODE==='test'?'':'https://hanoi-one-day-ai.hanoi-one-day.workers.dev';
-const endpoint=((import.meta.env.VITE_AI_ENDPOINT as string|undefined)||defaultEndpoint).replace(/\/$/,'');
+const endpoint=selectAiEndpoint(import.meta.env.MODE,import.meta.env.VITE_AI_ENDPOINT as string|undefined,typeof navigator==='undefined'?'':navigator.userAgent);
+const usesMobileBridge=endpoint===TENCENT_AI_ENDPOINT;
 export const isAiConfigured=Boolean(endpoint);
 const SESSION_KEY='hanoi-one-day-ai-session';
 let transientSessionId='',warmPromise:Promise<void>|null=null;
@@ -97,8 +98,8 @@ export async function requestAiReply(input:{messages:DialogueMessage[];target:Or
       task:input.task,
       clerk:input.clerk||'Lạc',
       difficulty:input.difficulty||'standard',
-    // 对话不能因为移动网络抖动连续等待两轮；3.6 秒内未返回就立即使用本地已校验的推进语。
-    },[3600]);
+    // 手机直连腾讯云多等一次冷启动；桌面仍保持原有 3.6 秒上限。超时后使用本地推进语。
+    },[usesMobileBridge?7000:3600]);
     if(!response?.ok)return null;
     const data=await response.json() as Partial<AiReply>;
     if(typeof data.vi!=='string'||typeof data.zh!=='string'||!data.vi.trim()||!data.zh.trim())return null;
@@ -129,8 +130,8 @@ export async function requestAiFeedback(input:{messages:DialogueMessage[];target
     const timeout=new Promise<AiFeedbackResult>(resolve=>{timer=window.setTimeout(()=>{controller.abort();resolve({feedback:null,failure:'timeout'})},limitMs)});
     try{return await Promise.race([request,timeout])}finally{window.clearTimeout(timer)}
   };
-  let result=await attempt(8000);
-  if(!result.feedback&&['timeout','network','server','invalid'].includes(result.failure||'')){
+  let result=await attempt(usesMobileBridge?19_000:8000);
+  if(!usesMobileBridge&&!result.feedback&&['timeout','network','server','invalid'].includes(result.failure||'')){
     await pause(150);
     result=await attempt(6000);
   }
@@ -140,5 +141,5 @@ export async function requestAiFeedback(input:{messages:DialogueMessage[];target
 
 export async function requestMarketReply(input:{stall:string;messages:DialogueMessage[];price:number;event:string;suggestedReply:DialogueMessage}):Promise<{vi:string;zh:string}|null>{
   if(!endpoint)return null;
-  try{const response=await post('/market',input,[6500]);if(!response?.ok)return null;const data=await response.json();return typeof data.vi==='string'&&data.vi.trim()&&typeof data.zh==='string'&&data.zh.trim()?{vi:data.vi.slice(0,320),zh:data.zh.slice(0,240)}:null;}catch{return null;}
+  try{const response=await post('/market',input,[usesMobileBridge?8000:6500]);if(!response?.ok)return null;const data=await response.json();return typeof data.vi==='string'&&data.vi.trim()&&typeof data.zh==='string'&&data.zh.trim()?{vi:data.vi.slice(0,320),zh:data.zh.slice(0,240)}:null;}catch{return null;}
 }

@@ -13,5 +13,16 @@ describe('市场交易与行走',()=>{
  it('各摊位之间的每段路线避开所有摊位实体',()=>{
   for(const from of STALLS)for(const to of STALLS){const route=marketRoute({x:from.x,z:from.z<0?from.z+2.3:from.z-2.3},to.id);for(let i=1;i<route.length;i++)for(let f=0;f<=1;f+=.05){const x=route[i-1].x+(route[i].x-route[i-1].x)*f,z=route[i-1].z+(route[i].z-route[i-1].z)*f;expect(STALLS.some(t=>Math.abs(t.x-x)<2.2&&Math.abs(t.z-z)<1.4)).toBe(false);}}
  });
+ it('两个市场入口到每个摊位的跳跃路线也不会穿过摊位',()=>{
+  for(const startX of [-7,7])for(const to of STALLS){
+   const route=marketRoute({x:startX,z:0},to.id);
+   expect(route.at(-1)).toEqual({x:to.x,z:to.z<0?to.z+2.3:to.z-2.3});
+   for(let i=1;i<route.length;i++)for(let f=0;f<=1;f+=.05){
+    const x=route[i-1].x+(route[i].x-route[i-1].x)*f;
+    const z=route[i-1].z+(route[i].z-route[i-1].z)*f;
+    expect(STALLS.some(t=>Math.abs(t.x-x)<2.2&&Math.abs(t.z-z)<1.4)).toBe(false);
+   }
+  }
+ });
  it('损坏的存档恢复为新一轮',()=>{localStorage.setItem(MARKET_KEY,'{"version":1}');expect(readMarket()).toEqual(newMarket());localStorage.removeItem(MARKET_KEY);});
 });

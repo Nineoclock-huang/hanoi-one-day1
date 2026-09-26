@@ -3,6 +3,7 @@ import { clearOfBuildings, insidePolygon, walkingRouteAsync, WALK_STEP, type Wal
 import { renderQuality } from './renderQuality';
 import { CITY_PLACES, CITY_VIEWS, cityPlace, type CityViewId } from './cityData';
 import { cameraTransitionDuration, easeInOutCubic } from './cameraMotion';
+import { createTraveler } from './traveler';
 
 type Point = [number, number];
 let lastPawnPosition:WalkPoint|undefined;
@@ -147,16 +148,8 @@ export function mountCity(host: HTMLElement, pin: HTMLElement, onEnter: () => vo
   const focusPlace=(id:string)=>{const place=cityPlace(id),district=CITY_VIEWS.find(item=>item.id===place.district)!;moveTo({...district,x:place.x,z:place.z,span:id==='west-lake'||id==='red-river'?18:14});};
 
   // A small wooden traveller: rounded head, tapered pawn body, hat and satchel.
-  const pawn=new T.Group();scene.add(pawn);
+  const pawn=createTraveler(color=>standard(color),geometry=>geometries.push(geometry));scene.add(pawn);
   const pawnLabel=document.createElement('span');pawnLabel.className='city-pawn-label';pawnLabel.textContent='小旅人 ↓';host.parentElement?.appendChild(pawnLabel);
-  const pawnPart=(g:T.BufferGeometry,color:string,x:number,y:number,z:number)=>{geometries.push(g);const mesh=new T.Mesh(g,standard(color));mesh.position.set(x,y,z);pawn.add(mesh);return mesh;};
-  pawnPart(new T.CylinderGeometry(.38,.52,.16,16),'#f9df96',0,.08,0);
-  pawnPart(new T.CylinderGeometry(.2,.38,.65,16),'#b9533c',0,.48,0);
-  pawnPart(new T.SphereGeometry(.36,16,12),'#ffe4bd',0,1.05,0);
-  pawnPart(new T.ConeGeometry(.51,.25,16),'#e5bb6c',0,1.41,0);
-  pawnPart(new T.SphereGeometry(.045,8,6),'#302c28',-.12,1.09,.32);
-  pawnPart(new T.SphereGeometry(.045,8,6),'#302c28',.12,1.09,.32);
-  pawnPart(new T.BoxGeometry(.22,.3,.17),'#3a7772',.33,.57,0);
   const bridgeWalk=(p:WalkPoint)=>distanceToSegment(p.x,p.z,[16,-2],[30,-11])<.85||distanceToSegment(p.x,p.z,[21,8],[36,1])<.34;
   const obstacleBuckets=new Map<string,WalkObstacle[]>();
   for(const obstacle of obstacles){for(let x=Math.floor((obstacle.x-obstacle.w/2-.6)/4);x<=Math.floor((obstacle.x+obstacle.w/2+.6)/4);x++)for(let z=Math.floor((obstacle.z-obstacle.d/2-.6)/4);z<=Math.floor((obstacle.z+obstacle.d/2+.6)/4);z++){const key=`${x},${z}`;const bucket=obstacleBuckets.get(key)||[];bucket.push(obstacle);obstacleBuckets.set(key,bucket);}}

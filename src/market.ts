@@ -5,7 +5,7 @@ export const STALLS = [
   {id:'cloth',name:'明的织物铺',vi:'VẢI & KHĂN',vendor:'Minh',personality:'精明，喜欢有理由的议价',item:'一条围巾（可选）',itemVi:'một chiếc khăn',icon:'🧣',color:'#537e9b',x:0,z:4,price:80000,floor:65000},
 ] as const;
 export type StallId=typeof STALLS[number]['id'];
-export type MarketLine={role:'user'|'clerk';vi:string;zh?:string};
+export type MarketLine={role:'user'|'clerk';vi:string;zh?:string;source?:'ai'|'local'};
 export type MarketSave={version:1;quotes:Record<StallId,number>;purchases:Partial<Record<StallId,number>>;history:Record<StallId,MarketLine[]>;visited:StallId[];bargains:StallId[]};
 export const MARKET_KEY='hanoi-market-v1';
 export const money=(n:number)=>`${n.toLocaleString('vi-VN')}₫`;
@@ -29,7 +29,7 @@ export function marketTurn(s:MarketSave,id:StallId,input:string):{state:MarketSa
   }else if(/tuoi|ngon|chat luong|qua|tang/.test(text)){vi=`${t.itemVi} rất hợp đấy. Bạn muốn xem không?`;zh=`${t.item}很合适，要看一下吗？`;}
   else if(/mua|lay|dong y|thanh toan/.test(text)){vi=`Tổng cộng ${old/1000} nghìn đồng. Bạn xác nhận nhé?`;zh=`总共 ${money(old)}，请确认购买。`;event='confirm';}
   if(s.purchases[id]!==undefined){price=old;event='purchased';vi='Cảm ơn bạn! Hẹn gặp lại.';zh='谢谢你，下次见！';}
-  const reply:MarketLine={role:'clerk',vi,zh};
+  const reply:MarketLine={role:'clerk',vi,zh,source:'local'};
   return{state:{...s,quotes:{...s.quotes,[id]:price},bargains:price<old?[...new Set([...s.bargains,id])]:s.bargains,history:{...s.history,[id]:[...s.history[id],{role:'user',vi:input},reply].slice(-30)}},reply,event};
 }
 export function buyMarket(s:MarketSave,id:StallId):MarketSave{

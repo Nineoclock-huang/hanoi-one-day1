@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>河内的一天 · 手机 AI 连通性检测</title>
+    <style>
+      :root { font-family: system-ui, -apple-system, "PingFang SC", sans-serif; color: #372c22; background: #f5ecdd; }
+      * { box-sizing: border-box; }
+      body { min-height: 100svh; margin: 0; display: grid; place-items: center; padding: 24px; }
+      main { width: min(100%, 420px); padding: 28px; border-radius: 24px; background: #fffaf1; box-shadow: 0 14px 38px #48331a1f; }
+      h1 { margin: 0 0 12px; font-size: 25px; }
+      p { line-height: 1.65; }
+      #status { font-size: 20px; font-weight: 700; }
+      #detail { overflow-wrap: anywhere; color: #705f50; }
+      button { border: 0; border-radius: 999px; padding: 13px 22px; color: white; background: #a84936; font: inherit; font-weight: 700; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>手机 AI 连通性检测</h1>
+      <p>仅检查微信能否从游戏网站连接到腾讯云；不发送聊天内容，也不调用 AI。</p>
+      <p id="status" role="status" aria-live="polite">正在检测…</p>
+      <p id="detail"></p>
+      <button id="retry" type="button">重新检测</button>
+    </main>
+    <script>
+      const endpoint = 'https://1496357497-6iqkre8e7w.ap-beijing.tencentscf.com/health';
+      const status = document.getElementById('status');
+      const detail = document.getElementById('detail');
+      const retry = document.getElementById('retry');
+      async function check() {
+        const controller = new AbortController();
+        const started = performance.now();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+        retry.disabled = true;
+        status.textContent = '正在检测…';
+        detail.textContent = '最多等待 10 秒。';
+        try {
+          const response = await fetch(`${endpoint}?t=${Date.now()}`, {
+            method: 'GET', mode: 'cors', credentials: 'omit', cache: 'no-store', signal: controller.signal,
+          });
+          if (!response.ok) throw new Error(`接口返回 HTTP ${response.status}`);
+          const result = await response.json();
+          if (result.ok !== true || result.provider !== 'tencent-scf') throw new Error('接口返回内容不符合预期');
+          status.textContent = '连接成功 ✓';
+          detail.textContent = `腾讯云响应约 ${Math.round(performance.now() - started)} 毫秒。请把这个结果告诉我。`;
+        } catch (error) {
+          status.textContent = error.name === 'AbortError' ? '检测超时' : '连接失败';
+          detail.textContent = error.name === 'AbortError'
+            ? '10 秒内没有完成请求。请把这个结果告诉我。'
+            : `微信无法读取检测结果（${error.message}）。请把这个结果告诉我。`;
+        } finally {
+          clearTimeout(timeout);
+          retry.disabled = false;
+        }
+      }
+      retry.addEventListener('click', check);
+      check();
+    </script>
+  </body>
+</html>

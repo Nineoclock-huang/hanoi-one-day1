@@ -9,6 +9,7 @@ it('无 WebGL 也能进入摊位、议价、购买并保存预算',async()=>{
  render(<MarketScene/>);fireEvent.click(screen.getByRole('button',{name:/走进市场/}));fireEvent.click(await screen.findByRole('button',{name:/兰姨水果摊/}));
  const input=await screen.findByRole('textbox',{name:'与摊主用越南语交流'});fireEvent.change(input,{target:{value:'Bot con 95 nghin duoc khong?'}});fireEvent.click(screen.getByRole('button',{name:'发送'}));
  await waitFor(()=>expect(screen.getByRole('button',{name:/确认购买/})).toBeEnabled());fireEvent.click(screen.getByRole('button',{name:/确认购买/}));expect(screen.getByText('145.000₫')).toBeInTheDocument();
+ expect(document.querySelector('.market-flight-layer')).toBeInTheDocument();
  expect(screen.getAllByText('该句由本地生成')).toHaveLength(2);
  fireEvent.click(screen.getByRole('button',{name:'回到市场沙盘'}));expect(screen.getByText('🛍 购物袋 · 1 件')).toBeInTheDocument();
  fireEvent.click(screen.getByRole('button',{name:/一键重来/}));expect(screen.getAllByText('240.000₫').length).toBeGreaterThan(0);expect(screen.getByText('🛍 购物袋 · 0 件')).toBeInTheDocument();
@@ -26,7 +27,7 @@ it('问价前隐藏总价，逐级提示和采购回放可用',async()=>{
  render(<MarketScene/>);fireEvent.click(screen.getByRole('button',{name:/走进市场/}));fireEvent.click(await screen.findByRole('button',{name:/兰姨水果摊/}));
  expect(screen.getByText('待询价')).toBeInTheDocument();
  fireEvent.click(screen.getByRole('button',{name:/先问价，再购买/}));expect(screen.getByText(/先用越南语问价/)).toBeInTheDocument();
- fireEvent.click(screen.getByRole('button',{name:/需要一点提示/}));expect(screen.getByText(/关键词：xoài/)).toBeInTheDocument();
+ fireEvent.click(screen.getByRole('button',{name:/需要一点提示/}));expect(screen.getByText('问价关键词')).toBeInTheDocument();expect(screen.getByText('砍价关键词')).toBeInTheDocument();expect(screen.getByText('bớt')).toBeInTheDocument();
  const input=screen.getByRole('textbox',{name:'与摊主用越南语交流'});
  fireEvent.change(input,{target:{value:'Cô ơi, xoài bao nhiêu tiền một cân ạ?'}});fireEvent.click(screen.getByRole('button',{name:'发送'}));
  await waitFor(()=>expect(screen.getByRole('button',{name:/确认购买/})).toBeEnabled());
@@ -35,4 +36,13 @@ it('问价前隐藏总价，逐级提示和采购回放可用',async()=>{
  fireEvent.click(screen.getByRole('button',{name:'查看采购进度'}));
  expect(screen.getByRole('dialog',{name:'市场采购报告'})).toHaveTextContent('信息核对');
  expect(screen.getByRole('dialog',{name:'市场采购报告'})).toHaveTextContent('使用提示 1 次');
+});
+it('玩家语序错误在对话中标红并交给全局错题本',async()=>{
+ const onMistake=vi.fn();
+ render(<MarketScene onMistake={onMistake}/>);fireEvent.click(screen.getByRole('button',{name:/走进市场/}));fireEvent.click(await screen.findByRole('button',{name:/兰姨水果摊/}));
+ const input=screen.getByRole('textbox',{name:'与摊主用越南语交流'});
+ fireEvent.change(input,{target:{value:'Xoài bao nhieu gia?'}});fireEvent.click(screen.getByRole('button',{name:'发送'}));
+ await waitFor(()=>expect(onMistake).toHaveBeenCalledOnce());
+ expect(screen.getByText('bao nhieu gia')).toHaveClass('learner-error');
+ expect(screen.getByText(/建议：Xoài giá bao nhiêu\?/)).toBeInTheDocument();
 });

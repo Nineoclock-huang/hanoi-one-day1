@@ -1,11 +1,12 @@
 import { normalizeVietnamese } from './engine';
+import type { Correction } from './notebook';
 export const STALLS = [
   {id:'fruit',name:'兰姨水果摊',vi:'TRÁI CÂY',vendor:'Cô Lan',personality:'热情，愿意给爽快的客人优惠',item:'两公斤芒果',itemVi:'hai cân xoài',icon:'🥭',color:'#cd7141',x:-5,z:-3,price:110000,floor:90000},
   {id:'gifts',name:'安的特产铺',vi:'QUÀ HÀ NỘI',vendor:'An',personality:'耐心，擅长推荐伴手礼',item:'一盒绿豆糕',itemVi:'một hộp bánh đậu xanh',icon:'🎁',color:'#538571',x:5,z:-3,price:65000,floor:50000},
   {id:'cloth',name:'明的织物铺',vi:'VẢI & KHĂN',vendor:'Minh',personality:'精明，喜欢有理由的议价',item:'一条围巾（可选）',itemVi:'một chiếc khăn',icon:'🧣',color:'#537e9b',x:0,z:4,price:80000,floor:65000},
 ] as const;
 export type StallId=typeof STALLS[number]['id'];
-export type MarketLine={role:'user'|'clerk';vi:string;zh?:string;source?:'ai'|'local'};
+export type MarketLine={role:'user'|'clerk';vi:string;zh?:string;source?:'ai'|'local';correction?:Correction;reviewId?:string};
 export const MARKET_BUDGET=240000;
 export const MARKET_SCENARIOS=[
   {id:'unit',stall:'fruit',label:'单位谜题',clue:'水果按“每公斤”报价，记得核对两公斤的总价。',vi:'Xoài 55 nghìn một cân. Bạn muốn lấy mấy cân?',zh:'芒果每公斤五万五，你要几公斤？'},
@@ -114,11 +115,17 @@ export function marketAdvice(s:MarketSave){
   if(!s.skills.polite)advice.push('句末加“ạ”，会让问价和请求更礼貌。');
   return advice.length?advice.slice(0,3):['你已经完成问价、核对和议价；下次可换一种说法再挑战。'];
 }
+export function marketHintWords(id:StallId){
+  const ask=id==='fruit'?[['xoài','芒果'],['một cân','每公斤'],['bao nhiêu','多少']]:id==='gifts'?[['bánh đậu xanh','绿豆糕'],['một hộp','一盒'],['giá','价格']]:[['khăn','围巾'],['màu','颜色'],['bao nhiêu','多少']];
+  const bargain=[['bớt','少一些'],['giảm','降低'],['một chút','一点'],['được không','可以吗'],['ạ','礼貌语气']];
+  return {ask,bargain};
+}
 export function marketHint(s:MarketSave,id:StallId,level:1|2|3){
   const item=STALLS.find(stall=>stall.id===id)!;
-  if(level===1)return id==='fruit'?'关键词：xoài（芒果）· một cân（每公斤）· bao nhiêu（多少）':id==='gifts'?'关键词：bánh đậu xanh（绿豆糕）· một hộp（一盒）· giá（价格）':'关键词：khăn（围巾）· màu（颜色）· bao nhiêu（多少）';
-  if(level===2)return `试着组成一句问价：${item.itemVi} + bao nhiêu tiền ạ?`;
-  return id==='fruit'?'Cô ơi, xoài này bao nhiêu tiền một cân ạ?':id==='gifts'?'Một hộp bánh đậu xanh bao nhiêu tiền ạ?':'Chiếc khăn này bao nhiêu tiền ạ?';
+  if(level===1){const words=marketHintWords(id);return `问价关键词：${words.ask.map(([vi,zh])=>`${vi}（${zh}）`).join(' · ')}。砍价关键词：${words.bargain.map(([vi,zh])=>`${vi}（${zh}）`).join(' · ')}。先挑词自己组织，不必照抄。`;}
+  if(level===2)return `问价可组合：${item.itemVi} + bao nhiêu tiền ạ?；砍价可组合：nếu mua（如果购买） + bớt / giảm + một chút + được không ạ?`;
+  const question=id==='fruit'?'Cô ơi, xoài này bao nhiêu tiền một cân ạ?':id==='gifts'?'Một hộp bánh đậu xanh bao nhiêu tiền ạ?':'Chiếc khăn này bao nhiêu tiền ạ?';
+  return `${question} 砍价示范：Nếu mua ${item.itemVi}, ${id==='fruit'?'cô':'bạn'} bớt một chút được không ạ?`;
 }
 // Every journey stays on the broad central aisle; stall fronts are outside their footprints.
 export function marketRoute(start:{x:number;z:number},id:StallId){

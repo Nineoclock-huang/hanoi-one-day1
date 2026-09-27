@@ -47,3 +47,17 @@ it('AI 不可用时明确标记店员回复由本地生成',async()=>{
   expect(screen.getAllByText('该句由本地生成')).toHaveLength(2);
   expect(screen.queryByText('AI 生成')).not.toBeInTheDocument();
 });
+
+it('咖啡馆错序表达在对话内纠正并可从全局错题本查看',async()=>{
+  vi.mocked(requestAiReply).mockResolvedValue(null);
+  render(<App/>);
+  fireEvent.click(screen.getByRole('button',{name:/开始体验/}));
+  await waitFor(()=>expect(screen.getByRole('status')).toHaveTextContent('当前设备无法显示'));
+  fireEvent.click(screen.getByRole('button',{name:'进入咖啡店'}));
+  fireEvent.click(screen.getByRole('button',{name:'进入咖啡店'}));
+  fireEvent.change(screen.getByRole('textbox'),{target:{value:'Cho tôi ca phe da sua'}});
+  fireEvent.click(screen.getByRole('button',{name:'发送'}));
+  await waitFor(()=>expect(screen.getByText('ca phe da sua')).toHaveClass('learner-error'));
+  fireEvent.click(screen.getByRole('button',{name:/错题本/}));
+  expect(screen.getByRole('dialog',{name:'全局错题本'})).toHaveTextContent('Cho tôi cà phê sữa đá');
+});

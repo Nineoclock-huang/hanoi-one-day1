@@ -3,12 +3,14 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   STALLS, MARKET_KEY, MARKET_BUDGET, readMarket, newMarket, nextScenario,
   balance, money, marketTurn, buyMarket, marketComplete, marketOpening,
-  marketHint, marketScore, marketAdvice, priceKnown, scenarioFor, type StallId,
+  marketHint, marketHintWords, marketScore, marketAdvice, priceKnown, scenarioFor, type StallId,
 } from './market';
 import { requestMarketReply } from './ai';
+import CorrectionView from './CorrectionView';
+import { localCorrection, type Correction } from './notebook';
 import './market.css';
 
-export default function MarketScene() {
+export default function MarketScene({ onMistake, onNotebook }: { onMistake?: (original: string, correction: Correction) => void; onNotebook?: () => void }) {
   const [save, setSave] = useState(readMarket);
   const [active, setActive] = useState<StallId | null>(null);
   const [travelling, setTravelling] = useState<StallId | null>(null);
@@ -20,6 +22,7 @@ export default function MarketScene() {
   const [notice, setNotice] = useState('');
   const [intro, setIntro] = useState(() => readMarket().visited.length === 0);
   const [hintLevel, setHintLevel] = useState<0 | 1 | 2 | 3>(0);
+  const [flight, setFlight] = useState<{ icon: string; x: number; y: number; dx: number; dy: number } | null>(null);
   const host = useRef<HTMLDivElement>(null);
   const pins = useRef(new Map<StallId, HTMLButtonElement>());
   const handle = useRef<ReturnType<typeof import('./marketRenderer')['mountMarket']> | null>(null);
@@ -27,6 +30,8 @@ export default function MarketScene() {
   const travelLock = useRef(false);
   const requestLock = useRef(false);
   const log = useRef<HTMLDivElement>(null);
+  const buyButton = useRef<HTMLButtonElement>(null);
+  const flightTimer = useRef<number | null>(null);
 
   useEffect(() => {
     alive.current = true;
@@ -36,7 +41,7 @@ export default function MarketScene() {
       try { handle.current = mountMarket(host.current, pins.current); setReady(true); }
       catch { setFallback(true); }
     }).catch(() => { if (!cancelled) setFallback(true); });
-    return () => { cancelled = true; alive.current = false; handle.current?.dispose(); handle.current = null; };
+    return () => { cancelled = true; alive.current = false; handle.current?.dispose(); handle.current = null; if (flightTimer.current !== null) window.clearTimeout(flightTimer.current); };
   }, []);
   useEffect(() => {
     try { localStorage.setItem(MARKET_KEY, JSON.stringify(save)); }
@@ -84,7 +89,9 @@ export default function MarketScene() {
     requestLock.current = true;
     setBusy(true);
     setNotice('');
-    const id = active, result = marketTurn(save, id, input.trim());
+    const id = active, expression = input.trim(), result = marketTurn(save, id, expression), basicCorrection = localCorrection(expression);
+    const initialHistory = result.state.history[id];
+    if (basicCorrection) result.state.history[id] = [...initialHistory.slice(0, -2), { ...initialHistory.at(-2)!, correction: basicCorrection }, initialHistory.at(-1)!];
     setSave(result.state);
     setInput('');
     const ai = await requestMarketReply({
@@ -92,7 +99,9 @@ export default function MarketScene() {
       price: result.state.quotes[id], event: result.event, suggestedReply: result.reply,
     });
     if (!alive.current) return;
-    if (ai) setSave(s => ({ ...s, history: { ...s.history, [id]: [...s.history[id].slice(0, -1), { role: 'clerk', ...ai, source: 'ai' }] } }));
+    const correction = ai?.correction || basicCorrection;
+    if (correction) onMistake?.(expression, correction);
+    if (ai) setSave(s => { const lines = s.history[id]; return { ...s, history: { ...s.history, [id]: [...lines.slice(0, -2), { ...lines.at(-2)!, correction }, { role: 'clerk', vi: ai.vi, zh: ai.zh, source: 'ai' }] } }; });
     else setNotice('当前使用基础对话，仍可问价、议价和购买。');
     setBusy(false);
     requestLock.current = false;
@@ -105,6 +114,13 @@ export default function MarketScene() {
       return;
     }
     setSave(next);
+    const rect = buyButton.current?.getBoundingClientRect();
+    const x = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
+    const y = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
+    const targetX = window.innerWidth - 54, targetY = window.innerHeight - 67;
+    setFlight({ icon: STALLS.find(item => item.id === active)!.icon, x, y, dx: targetX - x, dy: targetY - y });
+    if (flightTimer.current !== null) window.clearTimeout(flightTimer.current);
+    flightTimer.current = window.setTimeout(() => { setFlight(null); flightTimer.current = null; }, 1150);
     setNotice('已放入购物袋。结算报告会回放你的购物表达。');
   };
   const revealHint = () => {
@@ -123,6 +139,7 @@ export default function MarketScene() {
     setReport(false);
     setIntro(true);
     setHintLevel(0);
+    setFlight(null);
     setNotice('新一轮采购已开始，本局会遇到不同的小状况。');
   };
   const stall = STALLS.find(t => t.id === active);
@@ -144,16 +161,16 @@ export default function MarketScene() {
     </div>
     <footer className="market-bag"><div><strong>🛍 购物袋 · {Object.keys(save.purchases).length} 件</strong><span>{Object.keys(save.purchases).length ? STALLS.filter(t => save.purchases[t.id] !== undefined).map(t => t.item).join(' / ') : `带着 ${money(MARKET_BUDGET)} 出发，先问问价格吧。`}</span></div><div className="market-bag-actions"><button className="market-restart" onClick={restart}>↻ 一键重来</button><button onClick={() => setReport(true)}>{marketComplete(save) ? '完成采购，查看报告' : '查看采购进度'}</button></div></footer>
     {stall && active && createPortal(<div className="market-overlay"><section className="market-dialog" role="dialog" aria-modal="true" aria-label={stall.name}>
-      <header><div><small>{stall.vi}</small><h3>{stall.icon} {stall.name}</h3><p>{stall.vendor} · {stall.personality}</p></div><button disabled={busy} onClick={() => setActive(null)} aria-label="回到市场沙盘">✕</button></header>
+      <header><div><small>{stall.vi}</small><h3>{stall.icon} {stall.name}</h3><p>{stall.vendor} · {stall.personality}</p></div><div className="market-dialog-actions">{onNotebook && <button onClick={onNotebook} aria-label="查看错题本">错题本</button>}<button disabled={busy} onClick={() => setActive(null)} aria-label="回到市场沙盘">✕</button></div></header>
       <div className="market-quote"><span>{stall.item}{scenario.stall === active && <small className="market-scene-tag">本局小状况 · {scenario.label}</small>}</span><strong>{priceKnown(save, active) ? money(save.quotes[active]) : '待询价'}<small>{priceKnown(save, active) ? '整份总价' : '用越南语问摊主'}</small></strong></div>
-      <div className="market-messages" ref={log} aria-live="polite"><div className="market-message clerk"><small>{stall.vendor}<em className="message-source source-local">该句由本地生成</em></small>{marketOpening(save, active).vi}<span>{marketOpening(save, active).zh}</span></div>{save.history[active].slice(0, busy ? -1 : undefined).map((message, i) => <div className={`market-message ${message.role}`} key={i}><small>{message.role === 'user' ? '你' : stall.vendor}{message.role === 'clerk' && <em className={`message-source source-${message.source || 'unknown'}`}>{message.source === 'ai' ? 'AI 生成' : message.source === 'local' ? '该句由本地生成' : '来源未记录'}</em>}</small>{message.vi}{message.zh && <span>{message.zh}</span>}</div>)}{busy && <div className="market-message clerk">摊主正在回应<span className="market-dots"> …</span></div>}</div>
-      <div className="market-hint"><button type="button" onClick={revealHint} disabled={hintLevel === 3}>{hintLevel === 0 ? '需要一点提示？' : hintLevel === 3 ? '已展示完整示范' : '再给我一点提示'} · {hintLevel}/3</button>{hintLevel > 0 && <p>{marketHint(save, active, hintLevel as 1 | 2 | 3)}</p>}{hintLevel === 0 && <small>先自己试试；提示会从关键词逐步展开。</small>}</div>
+      <div className="market-messages" ref={log} aria-live="polite"><div className="market-message clerk"><small>{stall.vendor}<em className="message-source source-local">该句由本地生成</em></small>{marketOpening(save, active).vi}<span>{marketOpening(save, active).zh}</span></div>{save.history[active].slice(0, busy ? -1 : undefined).map((message, i) => <div className={`market-message ${message.role}`} key={i}><small>{message.role === 'user' ? '你' : stall.vendor}{message.role === 'clerk' && <em className={`message-source source-${message.source || 'unknown'}`}>{message.source === 'ai' ? 'AI 生成' : message.source === 'local' ? '该句由本地生成' : '来源未记录'}</em>}</small>{message.role === 'user' ? <CorrectionView original={message.vi} correction={message.correction} /> : message.vi}{message.zh && <span>{message.zh}</span>}</div>)}{busy && <div className="market-message clerk">摊主正在回应<span className="market-dots"> …</span></div>}</div>
+      <div className="market-hint"><button type="button" onClick={revealHint} disabled={hintLevel === 3}>{hintLevel === 0 ? '需要一点提示？' : hintLevel === 3 ? '已展示完整示范' : '再给我一点提示'} · {hintLevel}/3</button>{hintLevel === 1 && <div className="market-hint-words"><div><strong>问价关键词</strong>{marketHintWords(active).ask.map(([vi,zh])=><span key={vi}><b>{vi}</b><small>{zh}</small></span>)}</div><div><strong>砍价关键词</strong>{marketHintWords(active).bargain.map(([vi,zh])=><span key={vi}><b>{vi}</b><small>{zh}</small></span>)}</div><small>挑选词语，自己组织一句话；发出后会在对话中纠错。</small></div>}{hintLevel > 1 && <p>{marketHint(save, active, hintLevel as 2 | 3)}</p>}{hintLevel === 0 && <small>先自己试试；提示会从关键词逐步展开。</small>}</div>
       {notice && <p className="market-notice" role="status">{notice}</p>}
       <form onSubmit={submit} className="market-composer"><input aria-label="与摊主用越南语交流" placeholder="先问价格，或回应摊主的问题…" maxLength={320} value={input} onChange={event => setInput(event.target.value)} disabled={busy} /><button disabled={busy || !input.trim()}>发送</button></form>
-      <button className="market-buy" onClick={buy} disabled={busy || save.purchases[active] !== undefined}>{save.purchases[active] !== undefined ? '✓ 已购买' : priceKnown(save, active) ? `确认购买 · ${money(save.quotes[active])}` : '先问价，再购买'}</button>
+      <button ref={buyButton} className="market-buy" onClick={buy} disabled={busy || save.purchases[active] !== undefined}>{save.purchases[active] !== undefined ? '✓ 已购买' : priceKnown(save, active) ? `确认购买 · ${money(save.quotes[active])}` : '先问价，再购买'}</button>
     </section></div>, document.body)}
     {report && createPortal(<div className="market-overlay"><section className="market-dialog market-report" role="dialog" aria-modal="true" aria-label="市场采购报告">
-      <small>YOUR MARKET JOURNAL / 采购回放</small><h3>{marketComplete(save) ? '采购完成，满载而归。' : '采购进行中'}</h3><p>已探索 {save.visited.length}/3 个摊位 · 剩余 {money(balance(save))}</p>
+      <div className="market-report-top"><small>YOUR MARKET JOURNAL / 采购回放</small>{onNotebook && <button onClick={onNotebook}>查看错题本</button>}</div><h3>{marketComplete(save) ? '采购完成，满载而归。' : '采购进行中'}</h3><p>已探索 {save.visited.length}/3 个摊位 · 剩余 {money(balance(save))}</p>
       <div className="market-score"><strong>{score.total}<small>/ 100 · 当前练习表现</small></strong><div><span>任务完成 {score.task}/45</span><span>信息核对 {score.comprehension}/20</span><span>语言尝试 {score.expression}/20</span><span>市场策略 {score.strategy}/10</span><span>礼貌表达 {score.politeness}/5</span></div></div>
       {STALLS.map(t => <div className="market-receipt" key={t.id}><span>{t.icon} {t.item}</span><strong>{save.purchases[t.id] !== undefined ? money(save.purchases[t.id]!) : '未购买'}</strong></div>)}
       <p>已节省 {money(STALLS.reduce((sum, t) => sum + (save.purchases[t.id] !== undefined ? t.price - save.purchases[t.id]! : 0), 0))} · 已成交议价 {save.bargains.filter(id => save.purchases[id] !== undefined).length} 次 · 使用提示 {save.skills.hints} 次</p>
@@ -163,5 +180,6 @@ export default function MarketScene() {
       <button className="market-buy" onClick={() => setReport(false)}>继续逛市场</button>{marketComplete(save) && <button onClick={restart}>开启不同的小状况</button>}
     </section></div>, document.body)}
     {!active && !report && notice && <p className="market-reset-notice" role="status">{notice}</p>}
+    {flight && createPortal(<div className="market-flight-layer" aria-hidden="true"><div className="market-flight-bag">🛍<small>{Object.keys(save.purchases).length}</small></div><div className="market-flying-item" style={{ left: flight.x, top: flight.y, '--travel-x': `${flight.dx}px`, '--travel-y': `${flight.dy}px` } as React.CSSProperties}>{flight.icon}</div></div>, document.body)}
   </div>;
 }

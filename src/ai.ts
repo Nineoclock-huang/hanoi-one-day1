@@ -1,9 +1,10 @@
 import {normalizeVietnamese,type Assessment,type Criteria,type OrderTarget} from './engine';
 import {selectAiEndpoint,TENCENT_AI_ENDPOINT} from './aiEndpoint';
+import { type Correction, validateCorrection } from './notebook';
 
 export type DialogueMessage={role:'clerk'|'user';vi:string;zh?:string};
 export type ClerkMood='neutral'|'listening'|'happy'|'clarify';
-export type AiReply={vi:string;zh:string;attempts?:Partial<Assessment>;evidence?:Partial<Record<keyof Assessment,string>>;confidence?:Partial<Record<keyof Assessment,number>>;mood?:ClerkMood};
+export type AiReply={vi:string;zh:string;attempts?:Partial<Assessment>;evidence?:Partial<Record<keyof Assessment,string>>;confidence?:Partial<Record<keyof Assessment,number>>;mood?:ClerkMood;correction?:Correction};
 export type AiFeedback={languageScore:number;grammar:string;vocabulary:string;naturalness:string;advice:string[]};
 export type AiFeedbackFailure='timeout'|'network'|'blocked'|'rate-limited'|'server'|'invalid'|'unconfigured';
 export type AiFeedbackResult={feedback:AiFeedback|null;failure?:AiFeedbackFailure};
@@ -107,7 +108,9 @@ export async function requestAiReply(input:{messages:DialogueMessage[];target:Or
     const evidence=Object.fromEntries((['product','quantity','sugar','service','payment']as const).filter(key=>typeof data.evidence?.[key]==='string').map(key=>[key,String(data.evidence?.[key]).slice(0,120)])) as Partial<Record<keyof Assessment,string>>;
     const confidence=Object.fromEntries((['product','quantity','sugar','service','payment']as const).filter(key=>typeof data.confidence?.[key]==='number'&&Number.isFinite(data.confidence[key])).map(key=>[key,Math.max(0,Math.min(1,Number(data.confidence?.[key])))])) as Partial<Record<keyof Assessment,number>>;
     const mood=(['neutral','listening','happy','clarify'] as const).includes(data.mood as ClerkMood)?data.mood as ClerkMood:undefined;
-    return{vi:data.vi.trim().slice(0,320),zh:data.zh.trim().slice(0,240),attempts,evidence,confidence,mood};
+    const latest=input.messages.filter(message=>message.role==='user').at(-1)?.vi||'';
+    const correction=validateCorrection(data.correction,latest,'ai')||undefined;
+    return{vi:data.vi.trim().slice(0,320),zh:data.zh.trim().slice(0,240),attempts,evidence,confidence,mood,correction};
   }catch{return null}
 }
 
@@ -139,7 +142,7 @@ export async function requestAiFeedback(input:{messages:DialogueMessage[];target
   return result;
 }
 
-export async function requestMarketReply(input:{stall:string;messages:DialogueMessage[];price:number;event:string;suggestedReply:DialogueMessage}):Promise<{vi:string;zh:string}|null>{
+export async function requestMarketReply(input:{stall:string;messages:DialogueMessage[];price:number;event:string;suggestedReply:DialogueMessage}):Promise<{vi:string;zh:string;correction?:Correction}|null>{
   if(!endpoint)return null;
-  try{const response=await post('/market',input,[usesMobileBridge?8000:6500]);if(!response?.ok)return null;const data=await response.json();return typeof data.vi==='string'&&data.vi.trim()&&typeof data.zh==='string'&&data.zh.trim()?{vi:data.vi.slice(0,320),zh:data.zh.slice(0,240)}:null;}catch{return null;}
+  try{const response=await post('/market',input,[usesMobileBridge?8000:6500]);if(!response?.ok)return null;const data=await response.json();const latest=input.messages.filter(message=>message.role==='user').at(-1)?.vi||'';return typeof data.vi==='string'&&data.vi.trim()&&typeof data.zh==='string'&&data.zh.trim()?{vi:data.vi.slice(0,320),zh:data.zh.slice(0,240),correction:validateCorrection(data.correction,latest,'ai')||undefined}:null;}catch{return null;}
 }

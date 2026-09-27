@@ -16,6 +16,19 @@ test('market vendor receives locked price and returns bilingual dialogue',async(
   try{const response=await worker.fetch(new Request('https://worker.example/market',{method:'POST',headers:{Origin:'http://127.0.0.1:5173'},body:JSON.stringify({stall:'fruit',messages:[{role:'user',vi:'Bot con 95 nghin duoc khong?'}],price:95000,event:'bargain',suggestedReply:{vi:'Được, 95 nghìn nhé.',zh:'可以，九万五。'}})}),{DEEPSEEK_API_KEY:'test'});assert.equal(response.status,200);assert.match(prompt,/Cô Lan/);assert.match(prompt,/95000 VND/);assert.match(prompt,/cannot change prices/);assert.equal((await response.json()).zh,'可以，九万五。');}finally{globalThis.fetch=original;}
 });
 
+test('AI correction must identify an exact learner span and a matching revised sentence',async()=>{
+  const original=globalThis.fetch;
+  globalThis.fetch=async()=>Response.json({choices:[{message:{content:JSON.stringify({vi:'Xoài 55 nghìn một cân.',zh:'芒果每公斤五万五。',correction:{kind:'word-order',span:'bao nhieu gia',replacement:'giá bao nhiêu',corrected:'Xoài giá bao nhiêu?',explanation:'问价时把 giá 放在前面。'}})}}]});
+  const payload={stall:'fruit',messages:[{role:'user',vi:'Xoài bao nhieu gia?'}],price:110000,event:'price',suggestedReply:{vi:'Xoài 55 nghìn một cân.',zh:'芒果每公斤五万五。'}};
+  try{
+    const response=await worker.fetch(new Request('https://worker.example/market',{method:'POST',headers:{Origin:'https://nineoclock-huang.github.io'},body:JSON.stringify(payload)}),{DEEPSEEK_API_KEY:'test'});
+    assert.deepEqual((await response.json()).correction,{kind:'word-order',span:'bao nhieu gia',replacement:'giá bao nhiêu',corrected:'Xoài giá bao nhiêu?',explanation:'问价时把 giá 放在前面。'});
+    globalThis.fetch=async()=>Response.json({choices:[{message:{content:JSON.stringify({vi:'Xoài 55 nghìn một cân.',zh:'芒果每公斤五万五。',correction:{kind:'grammar',span:'invented phrase',replacement:'x',corrected:'Xoài giá bao nhiêu?',explanation:'无依据'}})}}]});
+    const invalid=await worker.fetch(new Request('https://worker.example/market',{method:'POST',headers:{Origin:'https://nineoclock-huang.github.io'},body:JSON.stringify(payload)}),{DEEPSEEK_API_KEY:'test'});
+    assert.equal((await invalid.json()).correction,null);
+  }finally{globalThis.fetch=original}
+});
+
 test('Worker rejects unknown websites before contacting DeepSeek',async()=>{
   const response=await worker.fetch(new Request('https://worker.example/chat',{method:'POST',headers:{Origin:'https://evil.example'}}),{DEEPSEEK_API_KEY:'secret'});
   assert.equal(response.status,403);
@@ -36,11 +49,11 @@ test('Worker returns a validated bilingual reply without exposing the key',async
   try{
     const response=await worker.fetch(new Request('https://worker.example/chat',{method:'POST',headers:{Origin:'https://nineoclock-huang.github.io','Content-Type':'application/json'},body:JSON.stringify({messages:[{role:'user',vi:'Cà phê'}],task:'一杯少糖冰牛奶咖啡，带走',target:{product:'milk-iced',quantity:1,sugar:'less',service:'takeaway'},criteria:{product:true,quantity:true,sugar:true,service:true,payment:false},beforeAssessment:{},assessment:{product:'correct',quantity:'correct',sugar:'correct',service:'correct',payment:'not_attempted'},suggestedReply:{vi:'Bạn muốn thanh toán bằng cách nào?',zh:'你想如何付款？'},clerk:'Dận',difficulty:'rush'})}),{DEEPSEEK_API_KEY:'test-secret'});
     assert.equal(response.status,200);
-    assert.deepEqual(await response.json(),{vi:'Bạn muốn loại cà phê nào?',zh:'你想要哪一种咖啡？',mood:'clarify',attempts:{product:'not_attempted',quantity:'correct',sugar:'not_attempted',service:'not_attempted',payment:'not_attempted'},evidence:{product:'',quantity:'một ly',sugar:'',service:'',payment:''},confidence:{product:0,quantity:.96,sugar:0,service:0,payment:0}});
+    assert.deepEqual(await response.json(),{vi:'Bạn muốn loại cà phê nào?',zh:'你想要哪一种咖啡？',mood:'clarify',attempts:{product:'not_attempted',quantity:'correct',sugar:'not_attempted',service:'not_attempted',payment:'not_attempted'},evidence:{product:'',quantity:'một ly',sugar:'',service:'',payment:''},confidence:{product:0,quantity:.96,sugar:0,service:0,payment:0},correction:null});
     assert.equal(authorization,'Bearer test-secret');
     assert.deepEqual(upstreamBody.thinking,{type:'disabled'});
     assert.deepEqual(upstreamBody.response_format,{type:'json_object'});
-    assert.equal(upstreamBody.max_tokens,220);
+    assert.equal(upstreamBody.max_tokens,350);
     assert.match(upstreamBody.messages[0].content,/next required field is payment/);
     assert.match(upstreamBody.messages[0].content,/Never ask about a resolved field/);
     assert.match(upstreamBody.messages[0].content,/shortest exact evidence substring/);

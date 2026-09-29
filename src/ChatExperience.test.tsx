@@ -24,11 +24,12 @@ it('等待 AI 时在聊天区显示思考气泡，并自动滚动到新回复',a
   fireEvent.click(screen.getByRole('button',{name:'发送'}));
   expect(screen.getByRole('status',{name:'Lạc 正在思考'})).toBeInTheDocument();
   expect(screen.getByRole('complementary',{name:'咖啡店店员 Lạc'})).toHaveClass('mood-listening');
+  expect(screen.getByRole('img',{name:'二次元咖啡店店员 Lạc'})).toHaveAttribute('src',expect.stringContaining('lac-cozy-listening-768.webp'));
   await waitFor(()=>expect(screen.getByText(/Dạ, tôi đã nghe/)).toBeInTheDocument());
   expect(screen.getByText('AI 生成')).toBeInTheDocument();
   expect(screen.getByRole('complementary',{name:'咖啡店店员 Lạc'})).toHaveClass('mood-clarify');
   expect(document.querySelector('.mood-fx > span')).not.toBeInTheDocument();
-  expect(screen.getByRole('img',{name:'二次元咖啡店店员 Lạc'})).toHaveAttribute('src',expect.stringContaining('clerk-clarify-768.webp'));
+  expect(screen.getByRole('img',{name:'二次元咖啡店店员 Lạc'})).toHaveAttribute('src',expect.stringContaining('lac-cozy-clarify-768.webp'));
   expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
   expect((Element.prototype.scrollIntoView as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(before);
   expect(document.querySelector('.cafe-scene .bubble.user')).toHaveTextContent('Cà phê');

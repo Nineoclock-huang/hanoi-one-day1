@@ -5,7 +5,7 @@ import MarketScene from './MarketScene';
 import NotebookPanel from './NotebookPanel';
 import CorrectionView from './CorrectionView';
 import { addMistake, localCorrection, readNotebook, NOTEBOOK_KEY, type Correction, type Mistake } from './notebook';
-import { asset, loadCity, warmCafe } from './loading';
+import { asset, danSpriteName, lacSpriteName, loadCity, warmCafe } from './loading';
 import { type AiFeedback, type AiFeedbackFailure, type ClerkMood, fallbackLanguageFeedback, isAiConfigured, requestAiFeedback, requestAiReply, trustedAiAttempts, warmAi } from './ai';
 import { analyzeAttempts, analyzeContextualConfirmation, type Assessment, clerkReply, correctCriteria, type Criteria, criterionLabels, currentOrderTarget, emptyAssessment, finalScore, hints, mergeAssessment, normalizeVietnamese, orderSummary, randomizeOrderTarget, recommendedExpression, resolvedCount, resolvedCriteria, spokenOrder, type OrderTarget } from './engine';
 import { keyboardIsOpen } from './mobileViewport';
@@ -26,8 +26,8 @@ function rushWasCompleted(){return localStorage.getItem(RUSH_DONE_KEY)==='yes'||
 const steps: Screen[] = ['home', 'map', 'mission', 'chat', 'report'];
 const labels: Record<Screen, string> = { home: '首页', map: '城市地图', mission: '任务介绍', chat: '对话场景', serving: '咖啡已送达', grading: 'AI 评分', report: '任务报告', 'cafe-choice':'咖啡馆 · 任务选择', market:'同春市场' };
 const sprite = (clerk: 'Lạc' | 'Dận', mood: CharacterMood, size: 448 | 768) => {
-  if (clerk === 'Dận') return asset(`dan${mood === 'neutral' ? '' : mood === 'clarify' || mood === 'impatient' ? '-impatient' : `-${mood}`}-${size}.webp`);
-  return asset(`clerk${mood === 'neutral' ? '' : mood === 'impatient' ? '-clarify' : `-${mood}`}-${size}.webp`);
+  if (clerk === 'Dận') return asset(danSpriteName(mood, size));
+  return asset(lacSpriteName(mood, size));
 };
 function loadReports(): SavedReport[] { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; } }
 

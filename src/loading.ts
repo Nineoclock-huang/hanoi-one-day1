@@ -8,6 +8,14 @@ export function loadCity() {
   });
 }
 export const asset = (name: string) => `${import.meta.env.BASE_URL}optimized/${name}`;
+export function lacSpriteName(mood: 'neutral' | 'listening' | 'happy' | 'clarify' | 'impatient', size: 448 | 768) {
+  const pose = mood === 'impatient' ? 'clarify' : mood;
+  return `lac-cozy${pose === 'neutral' ? '' : `-${pose}`}-${size}.webp`;
+}
+export function danSpriteName(mood: 'neutral' | 'listening' | 'happy' | 'clarify' | 'impatient', size: 448 | 768) {
+  const pose = mood === 'clarify' ? 'impatient' : mood;
+  return `dan-cozy${pose === 'neutral' ? '' : `-${pose}`}-${size}.webp`;
+}
 const warmed = new Set<string>();
 export function warmImage(name: string, url = asset(name),priority:'high'|'low'='low') {
   if (warmed.has(name)) return;
@@ -21,8 +29,8 @@ export function warmImage(name: string, url = asset(name),priority:'high'|'low'=
 export function warmCafe(includeRush=false) {
   const mobile = window.innerWidth <= 760;
   const size=mobile?448:768;
-  warmImage(`clerk-${size}.webp`,undefined,'high');
-  for(const mood of ['-listening', '-happy', '-clarify'])warmImage(`clerk${mood}-${size}.webp`);
-  if(includeRush){warmImage(`dan-${size}.webp`,undefined,'high');for(const mood of ['-listening', '-happy', '-impatient'])warmImage(`dan${mood}-${size}.webp`);}
+  warmImage(lacSpriteName('neutral', size),undefined,'high');
+  for(const mood of ['listening', 'happy', 'clarify'] as const) warmImage(lacSpriteName(mood, size));
+  if(includeRush){warmImage(danSpriteName('neutral',size),undefined,'high');for(const mood of ['listening', 'happy', 'impatient'] as const)warmImage(danSpriteName(mood,size));}
   warmImage('cafe-' + (mobile ? 'mobile' : 'desktop'), mobile ? cafeMobile : cafeDesktop);
 }

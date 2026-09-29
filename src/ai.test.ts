@@ -4,6 +4,9 @@ import { fallbackLanguageFeedback, trustedAiAttempts, type AiReply } from './ai'
 const reply = (overrides: Partial<AiReply>): AiReply => ({ vi: 'Được.', zh: '好的。', ...overrides });
 
 describe('AI 任务判断证据校验', () => {
+  it('不能把 phải 中的 hai 子串作为两杯证据', () => {
+    expect(trustedAiAttempts(reply({attempts:{quantity:'correct'},evidence:{quantity:'phải'},confidence:{quantity:.99}}),'phải')).toEqual({});
+  });
   it('接受高置信度且能在玩家原话中找到的字段证据', () => {
     const result = trustedAiAttempts(reply({
       attempts: { quantity: 'correct', sugar: 'correct' },

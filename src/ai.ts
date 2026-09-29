@@ -28,7 +28,7 @@ export function trustedAiAttempts(reply:AiReply|null,input:string):Partial<Asses
     const status=reply.attempts[key],rawEvidence=reply.evidence[key],confidence=reply.confidence[key];
     if((status!=='correct'&&status!=='incorrect')||typeof rawEvidence!=='string'||typeof confidence!=='number'||confidence<.8)continue;
     const evidence=normalizeVietnamese(rawEvidence);
-    if(!evidence||!message.includes(evidence)||!fieldSignals[key].some(signal=>evidence.includes(signal)))continue;
+    if(!evidence||!message.includes(evidence)||!fieldSignals[key].some(signal=>new RegExp(`(?:^| )${signal}(?: |$)`).test(evidence)))continue;
     result[key]=status;
   }
   return result;
@@ -86,7 +86,7 @@ export function warmAi():Promise<void>{
   return warmPromise;
 }
 
-export async function requestAiReply(input:{messages:DialogueMessage[];target:OrderTarget;criteria:Criteria;assessment:Assessment;beforeAssessment:Assessment;suggestedReply:AiReply;task:string;clerk?:'Lạc'|'Dận';difficulty?:'standard'|'rush'}):Promise<AiReply|null>{
+export async function requestAiReply(input:{messages:DialogueMessage[];target:OrderTarget;criteria:Criteria;assessment:Assessment;beforeAssessment:Assessment;scoreAssessment?:Assessment;order?:Partial<OrderTarget>;responseOnly?:boolean;suggestedReply:AiReply;task:string;clerk?:'Lạc'|'Dận';difficulty?:'standard'|'rush'}):Promise<AiReply|null>{
   if(!endpoint)return null;
   try{
     const response=await post('/chat',{
@@ -95,12 +95,15 @@ export async function requestAiReply(input:{messages:DialogueMessage[];target:Or
       criteria:input.criteria,
       assessment:input.assessment,
       beforeAssessment:input.beforeAssessment,
+      scoreAssessment:input.scoreAssessment,
+      order:input.order,
+      responseOnly:input.responseOnly === true,
       suggestedReply:input.suggestedReply,
       task:input.task,
       clerk:input.clerk||'Lạc',
       difficulty:input.difficulty||'standard',
     // 手机直连腾讯云多等一次冷启动；桌面仍保持原有 3.6 秒上限。超时后使用本地推进语。
-    },[usesMobileBridge?7000:3600]);
+    },[input.responseOnly?2400:usesMobileBridge?7000:3600]);
     if(!response?.ok)return null;
     const data=await response.json() as Partial<AiReply>;
     if(typeof data.vi!=='string'||typeof data.zh!=='string'||!data.vi.trim()||!data.zh.trim())return null;

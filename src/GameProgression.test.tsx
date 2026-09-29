@@ -65,6 +65,8 @@ it('Dận 超时只扣一次分，不自动判错或推进目标', async () => {
   expect(screen.getByLabelText('本题剩余时间')).toHaveTextContent('等待作答');
   act(() => vi.advanceTimersByTime(20_000));
   expect(screen.getAllByText(/Bạn gọi món xong chưa/)).toHaveLength(1);
+  expect(screen.queryByText('反应超时')).not.toBeInTheDocument();
+  expect(screen.getByLabelText('本题剩余时间')).toHaveTextContent('等待作答');
 });
 it('AI 评分失败后可在报告页重试，成功后更新分数与本地记录',async()=>{
   vi.mocked(requestAiFeedback)

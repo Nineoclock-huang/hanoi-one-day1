@@ -42,7 +42,13 @@ export function orderSummary(target=currentOrderTarget){return`${target.quantity
 function detectedProduct(text:string){return(Object.keys(products)as ProductId[]).find(id=>any(text,products[id].terms))}
 function detectedSugar(text:string){return(Object.keys(sugars)as SugarId[]).find(id=>any(text,sugars[id].terms))}
 function detectedService(text:string){return(Object.keys(services)as ServiceId[]).find(id=>any(text,services[id].terms))}
-function detectedQuantity(text:string){return([1,2]as const).find(value=>any(text,quantityTerms[value]))}
+function detectedQuantity(text:string){return([1,2]as const).find(value=>quantityTerms[value].some(term=>new RegExp(`(?:^| )${term}(?: |$)`).test(text)))}
+export function explicitOrder(input:string):Partial<OrderTarget>{
+  const text=normalizeVietnamese(input),result:Partial<OrderTarget>={};
+  const product=detectedProduct(text),quantity=detectedQuantity(text),sugar=detectedSugar(text),service=detectedService(text);
+  if(product)result.product=product;if(quantity)result.quantity=quantity;if(sugar)result.sugar=sugar;if(service)result.service=service;
+  return result;
+}
 export function spokenOrder(inputs:string[],fallback:OrderTarget):OrderTarget{
   return inputs.reduce((order,input)=>{
     const text=normalizeVietnamese(input);

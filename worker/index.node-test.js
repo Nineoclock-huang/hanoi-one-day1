@@ -54,13 +54,25 @@ test('Worker returns a validated bilingual reply without exposing the key',async
     assert.deepEqual(upstreamBody.thinking,{type:'disabled'});
     assert.deepEqual(upstreamBody.response_format,{type:'json_object'});
     assert.equal(upstreamBody.max_tokens,350);
-    assert.match(upstreamBody.messages[0].content,/next required field is payment/);
-    assert.match(upstreamBody.messages[0].content,/Never ask about a resolved field/);
+    assert.match(upstreamBody.messages[0].content,/provisional next field is payment/);
+    assert.match(upstreamBody.messages[0].content,/Never ask about a known field/);
     assert.match(upstreamBody.messages[0].content,/shortest exact evidence substring/);
     assert.match(upstreamBody.messages[0].content,/impatient Hanoi cafe barista/);
     assert.match(upstreamBody.messages[0].content,/never mention scores, penalties, timers, timeouts/);
     assert.match(upstreamBody.messages[0].content,/Source-checked Vietnamese terms/);
-    assert.match(upstreamBody.messages.at(-1).content,/only next topic.*payment/);
+    assert.match(upstreamBody.messages.at(-1).content,/FIRST understand the latest answer/);
+  }finally{globalThis.fetch=originalFetch}
+});
+
+test('response-only repair cannot award marks or overwrite learner correction',async()=>{
+  const originalFetch=globalThis.fetch;let upstreamBody;
+  globalThis.fetch=async(_url,options)=>{upstreamBody=JSON.parse(options.body);return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({vi:'Bạn thanh toán thế nào?',zh:'如何付款？',attempts:{payment:'correct'},evidence:{payment:'tiền mặt'},confidence:{payment:.99}})}}]}),{status:200})};
+  try{
+    const response=await worker.fetch(new Request('https://worker.example/chat',{method:'POST',headers:{Origin:'http://localhost:5173','Content-Type':'application/json'},body:JSON.stringify({messages:[{role:'user',vi:'mang đi'}],task:'一杯无糖冰黑咖啡，带走',target:{product:'black-iced',quantity:1,sugar:'none',service:'takeaway'},order:{product:'black-iced',quantity:1,sugar:'none',service:'takeaway'},assessment:{product:'correct',quantity:'correct',sugar:'correct',service:'correct',payment:'pending'},responseOnly:true,suggestedReply:{vi:'Bạn muốn thanh toán bằng cách nào?',zh:'如何付款？'}})}),{DEEPSEEK_API_KEY:'test-secret'});
+    const body=await response.json();assert.equal(response.status,200);
+    assert.equal(body.attempts.payment,'not_attempted');assert.equal(body.confidence.payment,0);assert.equal(body.correction,null);
+    assert.match(upstreamBody.messages[0].content,/RESPONSE-ONLY REPAIR/);
+    assert.match(upstreamBody.messages.at(-1).content,/ask only payment/);
   }finally{globalThis.fetch=originalFetch}
 });
 
